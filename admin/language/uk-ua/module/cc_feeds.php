@@ -1,6 +1,6 @@
 <?php
 // Heading
-$_['heading_title']          = 'CatCode Market Feeds (Rozetka / Prom)';
+$_['heading_title']          = 'Market Feeds (Rozetka / Prom)';
 
 // Text
 $_['text_extension']         = 'Розширення';

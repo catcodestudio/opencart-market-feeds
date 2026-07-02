@@ -1,4 +1,4 @@
-# CatCode Market Feeds (OpenCart 4)
+# Market Feeds (OpenCart 4)
 
 Product export feeds for Ukrainian marketplaces — **Rozetka XML** and **Prom.ua YML** — for OpenCart 4.x.
 
@@ -14,7 +14,7 @@ Product export feeds for Ukrainian marketplaces — **Rozetka XML** and **Prom.u
 - Optional feed file cache rebuilt by cron (`extension/cc_feeds/cron.rebuild`).
 
 ## Install
-Admin → Extensions → Installer → upload `cc_market_feeds.ocmod.zip`, then Extensions → Modules → install **CatCode Market Feeds** and open its settings.
+Admin → Extensions → Installer → upload `cc_market_feeds.ocmod.zip`, then Extensions → Modules → install **Market Feeds** and open its settings.
 
 ## Structure
 Repository root is the extension payload (`admin/`, `catalog/`, `system/`, `install.json`). Zip these into `cc_market_feeds.ocmod.zip` for the OpenCart installer.
