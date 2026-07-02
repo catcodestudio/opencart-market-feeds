@@ -1,0 +1,234 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="float-end">
+        <button type="submit" form="form-feeds" data-bs-toggle="tooltip" title="{{ button_save }}" class="btn btn-primary"><i class="fa-solid fa-save"></i></button>
+        <button type="button" id="btn-rebuild" class="btn btn-info"><i class="fa-solid fa-arrows-rotate"></i> {{ button_rebuild }}</button>
+        <a href="{{ back }}" class="btn btn-light"><i class="fa-solid fa-reply"></i></a>
+      </div>
+      <h1>{{ heading_title }}</h1>
+      <ol class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+        <li class="breadcrumb-item"><a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a></li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+  <div class="container-fluid">
+    <div id="alert-feeds"></div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="fa-solid fa-link"></i> {{ text_urls }}</div>
+      <div class="card-body">
+        <div class="row mb-2">
+          <label class="col-sm-2 col-form-label">{{ entry_rozetka }}</label>
+          <div class="col-sm-10"><input type="text" class="form-control" readonly value="{{ url_rozetka }}" onclick="this.select()"/></div>
+        </div>
+        <div class="row">
+          <label class="col-sm-2 col-form-label">{{ entry_prom }}</label>
+          <div class="col-sm-10"><input type="text" class="form-control" readonly value="{{ url_prom }}" onclick="this.select()"/></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="fa-solid fa-pencil"></i> {{ text_edit }}</div>
+      <div class="card-body">
+        <form id="form-feeds" action="{{ save }}" method="post">
+          <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><a class="nav-link active" href="#tab-general" data-bs-toggle="tab">{{ text_general }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="#tab-filters" data-bs-toggle="tab">{{ text_filters }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="#tab-output" data-bs-toggle="tab">{{ text_output }}</a></li>
+          </ul>
+          <div class="tab-content">
+
+            <div class="tab-pane active" id="tab-general">
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_status }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_status" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_status" value="1" class="form-check-input"{{ status == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_rozetka }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_rozetka_enabled" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_rozetka_enabled" value="1" class="form-check-input"{{ rozetka_enabled == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_prom }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_prom_enabled" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_prom_enabled" value="1" class="form-check-input"{{ prom_enabled == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_token }}</label>
+                <div class="col-sm-9"><div class="input-group">
+                  <input type="text" name="module_cc_feeds_feed_token" id="input-token" value="{{ feed_token }}" class="form-control"/>
+                  <button type="button" id="btn-token" class="btn btn-outline-secondary">{{ button_gen_token }}</button>
+                </div><div class="form-text">{{ help_token }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_currency }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_currency" value="{{ currency }}" class="form-control" style="max-width:120px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_cache }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_cache_enabled" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_cache_enabled" value="1" class="form-check-input"{{ cache_enabled == '1' ? ' checked' : '' }}/>
+                </div><div class="form-text">{{ help_cache }}</div></div>
+              </div>
+            </div>
+
+            <div class="tab-pane" id="tab-filters">
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_multiplier }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_price_multiplier" value="{{ price_multiplier }}" class="form-control" style="max-width:120px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_decimals }}</label>
+                <div class="col-sm-9"><input type="number" min="0" max="4" name="module_cc_feeds_price_decimals" value="{{ price_decimals }}" class="form-control" style="max-width:120px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_special }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_use_special" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_use_special" value="1" class="form-check-input"{{ use_special == '1' ? ' checked' : '' }}/>
+                </div><div class="form-text">{{ help_special }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_out_of_stock }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_include_out_of_stock" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_include_out_of_stock" value="1" class="form-check-input"{{ include_out_of_stock == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_stock_threshold }}</label>
+                <div class="col-sm-9"><input type="number" name="module_cc_feeds_stock_threshold" value="{{ stock_threshold }}" class="form-control" style="max-width:120px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_avail_in }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_availability_in" value="{{ availability_in }}" class="form-control" style="max-width:160px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_avail_out }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_availability_out" value="{{ availability_out }}" class="form-control" style="max-width:160px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_categories }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_category_ids[]" multiple size="8" class="form-select">
+                  {% for c in categories %}
+                  <option value="{{ c.category_id }}"{{ c.category_id in category_ids ? ' selected' : '' }}>{{ c.name }}</option>
+                  {% endfor %}
+                </select></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_manufacturers }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_manufacturer_ids[]" multiple size="6" class="form-select">
+                  {% for m in manufacturers %}
+                  <option value="{{ m.manufacturer_id }}"{{ m.manufacturer_id in manufacturer_ids ? ' selected' : '' }}>{{ m.name }}</option>
+                  {% endfor %}
+                </select></div>
+              </div>
+              <div class="row mb-3">
+                <div class="col-sm-9 offset-sm-3">
+                  <button type="button" id="btn-test" class="btn btn-outline-primary"><i class="fa-solid fa-vial"></i> {{ button_test }}</button>
+                  <span id="test-result" class="ms-2"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-pane" id="tab-output">
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_description }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_description_mode" class="form-select" style="max-width:260px">
+                  <option value="full"{{ description_mode == 'full' ? ' selected' : '' }}>{{ text_full }}</option>
+                  <option value="short"{{ description_mode == 'short' ? ' selected' : '' }}>{{ text_short }}</option>
+                  <option value="none"{{ description_mode == 'none' ? ' selected' : '' }}>{{ text_none }}</option>
+                </select></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_strip_html }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_strip_html" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_strip_html" value="1" class="form-check-input"{{ strip_html == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_image_limit }}</label>
+                <div class="col-sm-9"><input type="number" min="1" max="30" name="module_cc_feeds_image_limit" value="{{ image_limit }}" class="form-control" style="max-width:120px"/></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_sku_field }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_sku_field" class="form-select" style="max-width:200px">
+                  <option value="sku"{{ sku_field == 'sku' ? ' selected' : '' }}>SKU</option>
+                  <option value="model"{{ sku_field == 'model' ? ' selected' : '' }}>Model</option>
+                </select></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_params }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_export_params" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_export_params" value="1" class="form-check-input"{{ export_params == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_name_suffix }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_name_suffix" value="{{ name_suffix }}" class="form-control"/></div>
+              </div>
+            </div>
+
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+document.getElementById('form-feeds').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var alertBox = document.getElementById('alert-feeds');
+  fetch('{{ save }}', { method: 'POST', body: new FormData(this) })
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (json.error) {
+        alertBox.innerHTML = '<div class="alert alert-danger">' + json.error + '</div>';
+      } else if (json.success) {
+        alertBox.innerHTML = '<div class="alert alert-success">' + json.success + '</div>';
+      }
+      window.scrollTo(0, 0);
+    });
+});
+
+document.getElementById('btn-token').addEventListener('click', function() {
+  fetch('{{ gen_token }}').then(function(r) { return r.json(); }).then(function(json) {
+    if (json.token) { document.getElementById('input-token').value = json.token; }
+  });
+});
+
+document.getElementById('btn-test').addEventListener('click', function() {
+  var out = document.getElementById('test-result');
+  out.innerHTML = '<span class="text-muted">…</span>';
+  fetch('{{ test }}').then(function(r) { return r.json(); }).then(function(json) {
+    if (json.error) { out.innerHTML = '<span class="text-danger">' + json.error + '</span>'; }
+    else { out.innerHTML = '<span class="text-success">' + json.success + '</span>'; }
+  });
+});
+
+document.getElementById('btn-rebuild').addEventListener('click', function() {
+  var alertBox = document.getElementById('alert-feeds');
+  fetch('{{ rebuild }}').then(function(r) { return r.json(); }).then(function(json) {
+    if (json.error) { alertBox.innerHTML = '<div class="alert alert-danger">' + json.error + '</div>'; }
+    else { alertBox.innerHTML = '<div class="alert alert-success">' + json.success + '</div>'; }
+    window.scrollTo(0, 0);
+  });
+});
+</script>
+{{ footer }}
