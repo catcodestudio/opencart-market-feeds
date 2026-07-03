@@ -192,10 +192,14 @@
 </div>
 
 <script type="text/javascript">
+// Twig html-escapes controller URLs (& -> &amp;) which breaks fetch()
+// targets: the user token is lost and the login page comes back as HTML.
+function ccUrl(s) { return s.replace(/&amp;/g, '&'); }
+
 document.getElementById('form-feeds').addEventListener('submit', function(e) {
   e.preventDefault();
   var alertBox = document.getElementById('alert-feeds');
-  fetch('{{ save }}', { method: 'POST', body: new FormData(this) })
+  fetch(ccUrl('{{ save }}'), { method: 'POST', body: new FormData(this) })
     .then(function(r) { return r.json(); })
     .then(function(json) {
       if (json.error) {
@@ -208,7 +212,7 @@ document.getElementById('form-feeds').addEventListener('submit', function(e) {
 });
 
 document.getElementById('btn-token').addEventListener('click', function() {
-  fetch('{{ gen_token }}').then(function(r) { return r.json(); }).then(function(json) {
+  fetch(ccUrl('{{ gen_token }}')).then(function(r) { return r.json(); }).then(function(json) {
     if (json.token) { document.getElementById('input-token').value = json.token; }
   });
 });
@@ -216,7 +220,7 @@ document.getElementById('btn-token').addEventListener('click', function() {
 document.getElementById('btn-test').addEventListener('click', function() {
   var out = document.getElementById('test-result');
   out.innerHTML = '<span class="text-muted">…</span>';
-  fetch('{{ test }}').then(function(r) { return r.json(); }).then(function(json) {
+  fetch(ccUrl('{{ test }}')).then(function(r) { return r.json(); }).then(function(json) {
     if (json.error) { out.innerHTML = '<span class="text-danger">' + json.error + '</span>'; }
     else { out.innerHTML = '<span class="text-success">' + json.success + '</span>'; }
   });
@@ -224,7 +228,7 @@ document.getElementById('btn-test').addEventListener('click', function() {
 
 document.getElementById('btn-rebuild').addEventListener('click', function() {
   var alertBox = document.getElementById('alert-feeds');
-  fetch('{{ rebuild }}').then(function(r) { return r.json(); }).then(function(json) {
+  fetch(ccUrl('{{ rebuild }}')).then(function(r) { return r.json(); }).then(function(json) {
     if (json.error) { alertBox.innerHTML = '<div class="alert alert-danger">' + json.error + '</div>'; }
     else { alertBox.innerHTML = '<div class="alert alert-success">' + json.success + '</div>'; }
     window.scrollTo(0, 0);
