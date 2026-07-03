@@ -1,7 +1,7 @@
 {
   "name": "Market Feeds",
   "description": "Product export feeds for Ukrainian marketplaces (Rozetka XML, Prom.ua YML) for OpenCart 4.x — token-protected storefront feed URLs, streaming XMLWriter output (memory-safe on big catalogs), category/manufacturer filtering, special-price as promo price, availability + stock mapping, attributes as <param>, optional feed file cache via cron.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "CatCode",
   "link": "https://catcode.com.ua/opencart/market-feeds"
 }
