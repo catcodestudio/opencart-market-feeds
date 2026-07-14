@@ -21,3 +21,12 @@ Repository root is the extension payload (`admin/`, `catalog/`, `system/`, `inst
 
 ---
 © CatCode — https://catcode.com.ua
+
+
+## 🔗 CatCode
+
+Модуль розробляє і підтримує студія **[CatCode](https://catcode.com.ua)**.
+
+- 📄 Сторінка модуля з документацією та ліцензією: **https://catcode.com.ua/modules/opencart-market-feeds/**
+- 🧩 Усі наші модулі для OpenCart та WooCommerce: https://catcode.com.ua/modules/
+- ✉️ Підтримка: catcode.info@gmail.com
