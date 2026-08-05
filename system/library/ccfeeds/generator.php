@@ -18,6 +18,9 @@ class Generator {
 	private string $imageBase;
 	private int $customerGroupId;
 
+	/** Cached answer of "is this the 4.1 specials schema?" — see batchSpecials(). */
+	private ?bool $discountSpecialColumn = null;
+
 	/** Per-dialect tag differences. */
 	private const DIALECTS = [
 		'rozetka' => ['qty_tag' => 'stock_quantity'],
@@ -303,10 +306,16 @@ class Generator {
 	}
 
 	/**
-	 * Best active special per product. OpenCart 4 stores specials in
-	 * product_discount rows flagged special=1 (with a type: F=fixed price,
-	 * P=percent off, S=subtract) — there is no product_special table. The
-	 * lowest-priority (then lowest-price) valid row wins.
+	 * Best active special per product. The lowest-priority (then lowest-price)
+	 * valid row wins.
+	 *
+	 * ⚠ The two OpenCart 4 branches keep specials in DIFFERENT places:
+	 *  - 4.1.x  — `product_discount` rows flagged `special = 1`, with a type
+	 *             (F = fixed price, P = percent off, S = subtract);
+	 *  - 4.0.x  — a separate `product_special` table holding a fixed price and
+	 *             no type column at all.
+	 * Querying the 4.1 shape on a 4.0 shop hits "Unknown column 'special'" and
+	 * kills the whole feed, so the schema is detected once per run.
 	 *
 	 * @param int[] $ids
 	 * @return array<int,array{type:string,price:float}>
@@ -315,15 +324,29 @@ class Generator {
 		if (!$ids) {
 			return [];
 		}
-		$rows = $this->db->query("SELECT product_id, type, price
-			FROM `" . DB_PREFIX . "product_discount`
-			WHERE product_id IN (" . implode(',', $ids) . ")
-				AND special = 1
-				AND quantity <= 1
-				AND customer_group_id = " . (int)$this->customerGroupId . "
-				AND (date_start = '0000-00-00' OR date_start IS NULL OR date_start <= NOW())
-				AND (date_end = '0000-00-00' OR date_end IS NULL OR date_end >= NOW())
-			ORDER BY product_id ASC, priority ASC, price ASC")->rows;
+
+		$window = " AND (date_start = '0000-00-00' OR date_start IS NULL OR date_start <= NOW())
+				AND (date_end = '0000-00-00' OR date_end IS NULL OR date_end >= NOW())";
+
+		if ($this->discountHasSpecialColumn()) {
+			// quantity = 1, точно як у ядровій product-моделі: з quantity <= 1 у фід
+			// потрапила б акційна ціна, якої на вітрині немає, а розбіжність ціни
+			// між фідом і сайтом — привід для блокування прайса маркетплейсом.
+			$rows = $this->db->query("SELECT product_id, type, price
+				FROM `" . DB_PREFIX . "product_discount`
+				WHERE product_id IN (" . implode(',', $ids) . ")
+					AND special = 1
+					AND quantity = 1
+					AND customer_group_id = " . (int)$this->customerGroupId . $window . "
+				ORDER BY product_id ASC, priority ASC, price ASC")->rows;
+		} else {
+			// 4.0.x: fixed price only, so the type is always 'F'.
+			$rows = $this->db->query("SELECT product_id, 'F' AS type, price
+				FROM `" . DB_PREFIX . "product_special`
+				WHERE product_id IN (" . implode(',', $ids) . ")
+					AND customer_group_id = " . (int)$this->customerGroupId . $window . "
+				ORDER BY product_id ASC, priority ASC, price ASC")->rows;
+		}
 		$out = [];
 		foreach ($rows as $r) {
 			$pid = (int)$r['product_id'];
@@ -333,6 +356,15 @@ class Generator {
 			$out[$pid] = ['type' => (string)$r['type'], 'price' => (float)$r['price']];
 		}
 		return $out;
+	}
+
+	/** True on OpenCart 4.1+, where specials live in product_discount. */
+	private function discountHasSpecialColumn(): bool {
+		if ($this->discountSpecialColumn === null) {
+			$this->discountSpecialColumn = (bool)$this->db->query("SHOW COLUMNS FROM `" . DB_PREFIX . "product_discount` LIKE 'special'")->num_rows;
+		}
+
+		return $this->discountSpecialColumn;
 	}
 
 	/** Resolve an OC4 discount row to an effective special price given the base. */

@@ -69,19 +69,26 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$this->response->setOutput($this->load->view($this->route, $data));
 	}
 
+	/**
+	 * Flat list of categories with their full path as the label.
+	 *
+	 * ⚠ Do NOT walk the tree with getCategories(['filter_parent_id' => …]):
+	 * OpenCart 4.0 ignores that filter, so every level returns the WHOLE
+	 * catalogue and the recursion never narrows — the settings page died with
+	 * "Allowed memory size exhausted" before it rendered a single field. The
+	 * core model already returns names as "Parent > Child", so one flat call
+	 * is both correct and cheap.
+	 */
 	private function categoryTree(): array {
 		$this->load->model('catalog/category');
-		$out = [];
-		$this->walkCategories(0, '', $out);
-		return $out;
-	}
 
-	private function walkCategories(int $parentId, string $prefix, array &$out): void {
-		$children = $this->model_catalog_category->getCategories(['filter_parent_id' => $parentId]);
-		foreach ($children as $c) {
-			$out[] = ['category_id' => (int)$c['category_id'], 'name' => $prefix . $c['name']];
-			$this->walkCategories((int)$c['category_id'], $prefix . '— ', $out);
+		$out = [];
+
+		foreach ($this->model_catalog_category->getCategories([]) as $c) {
+			$out[] = ['category_id' => (int)$c['category_id'], 'name' => (string)$c['name']];
 		}
+
+		return $out;
 	}
 
 	public function save(): void {

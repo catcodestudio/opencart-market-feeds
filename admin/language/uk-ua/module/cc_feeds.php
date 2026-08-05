@@ -42,7 +42,7 @@ $_['entry_description']      = 'Опис товару';
 $_['entry_strip_html']       = 'Прибрати HTML з опису';
 $_['entry_image_limit']      = 'Макс. фото на товар';
 $_['entry_sku_field']        = 'Артикул із поля';
-$_['entry_params']           = 'Атрибути як <param>';
+$_['entry_params']           = 'Атрибути як &lt;param&gt;';
 $_['entry_name_suffix']      = 'Суфікс назви';
 $_['entry_cache']            = 'Кешувати у файл (cron)';
 
@@ -52,7 +52,7 @@ $_['button_gen_token']       = 'Згенерувати токен';
 $_['button_rebuild']         = 'Перебудувати кеш';
 $_['button_test']            = 'Перевірити';
 $_['help_token']             = 'Секретна частина URL фіду. Тримайте у таємниці — за ним доступний весь каталог.';
-$_['help_special']           = 'Якщо у товару діє акція — вона стає <price>, а звичайна ціна — <price_old>.';
+$_['help_special']           = 'Якщо у товару діє акція — вона стає &lt;price&gt;, а звичайна ціна — &lt;price_old&gt;.';
 $_['help_cache']             = 'Фід генерується у файл за розкладом (cron extension/cc_feeds/cron.rebuild) і віддається миттєво.';
 
 // Error

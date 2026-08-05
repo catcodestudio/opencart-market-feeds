@@ -42,7 +42,7 @@ $_['entry_description']      = 'Product description';
 $_['entry_strip_html']       = 'Strip HTML from description';
 $_['entry_image_limit']      = 'Max images per product';
 $_['entry_sku_field']        = 'SKU from field';
-$_['entry_params']           = 'Attributes as <param>';
+$_['entry_params']           = 'Attributes as &lt;param&gt;';
 $_['entry_name_suffix']      = 'Name suffix';
 $_['entry_cache']            = 'Cache to file (cron)';
 
@@ -52,7 +52,7 @@ $_['button_gen_token']       = 'Generate token';
 $_['button_rebuild']         = 'Rebuild cache';
 $_['button_test']            = 'Test';
 $_['help_token']             = 'Secret part of the feed URL. Keep it private — the whole catalog is reachable with it.';
-$_['help_special']           = 'When a product has an active special it becomes <price>, and the regular price becomes <price_old>.';
+$_['help_special']           = 'When a product has an active special it becomes &lt;price&gt;, and the regular price becomes &lt;price_old&gt;.';
 $_['help_cache']             = 'The feed is generated to a file on schedule (cron extension/cc_feeds/cron.rebuild) and served instantly.';
 
 // Error
