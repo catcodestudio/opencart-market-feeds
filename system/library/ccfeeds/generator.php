@@ -21,6 +21,12 @@ class Generator {
 	/** Cached answer of "is this the 4.1 specials schema?" — see batchSpecials(). */
 	private ?bool $discountSpecialColumn = null;
 
+	/** Lazily loaded tax rules, keyed by tax_class_id. See taxRates(). */
+	private ?array $taxRates = null;
+
+	/** Lazily loaded currency code => exchange value. */
+	private ?array $currencyValues = null;
+
 	/** Per-dialect tag differences. */
 	private const DIALECTS = [
 		'rozetka' => ['qty_tag' => 'stock_quantity'],
@@ -59,7 +65,7 @@ class Generator {
 		$w->writeElement('url', rtrim((string)$this->cfg('config_url'), '/') . '/');
 
 		// Currencies.
-		$currency = (string)$this->settings->get('currency', 'UAH');
+		$currency = $this->settings->currencyCode();
 		$w->startElement('currencies');
 		$w->startElement('currency');
 		$w->writeAttribute('id', $currency);
@@ -128,17 +134,26 @@ class Generator {
 		$exportParams = $this->settings->get('export_params', '1') === '1';
 		$nameSuffix   = (string)$this->settings->get('name_suffix', '');
 
-		$catFilter = array_filter(array_map('intval', (array)$this->settings->get('category_ids', [])));
-		$manFilter = array_filter(array_map('intval', (array)$this->settings->get('manufacturer_ids', [])));
+		// ⚠ Tax is applied only when the shop itself shows prices with tax: a
+		// feed price that disagrees with the product page is grounds for a
+		// marketplace to suspend the whole price list.
+		$applyTax = $this->settings->get('include_tax', '1') === '1' && (string)$this->cfg('config_tax') === '1';
 
-		$where = ["p.status = 1", "p.date_available <= NOW()"];
-		if ($manFilter) {
-			$where[] = "p.manufacturer_id IN (" . implode(',', $manFilter) . ")";
+		// The catalogue is priced in the shop's base currency; the feed may be
+		// published in another one.
+		$rate         = 1.0;
+		$baseCurrency = strtoupper((string)$this->cfg('config_currency'));
+
+		if ($baseCurrency !== '' && strtoupper($currency) !== $baseCurrency) {
+			$target = $this->currencyValue($currency);
+			$origin = $this->currencyValue($baseCurrency);
+
+			if ($target > 0 && $origin > 0) {
+				$rate = $target / $origin;
+			}
 		}
-		if ($catFilter) {
-			$where[] = "p.product_id IN (SELECT product_id FROM `" . DB_PREFIX . "product_to_category` WHERE category_id IN (" . implode(',', $catFilter) . "))";
-		}
-		$whereSql = implode(' AND ', $where);
+
+		$whereSql = $this->productWhere();
 
 		$pageSize = 500;
 		$offset   = 0;
@@ -146,7 +161,7 @@ class Generator {
 
 		while (true) {
 			$rows = $this->db->query("SELECT p.product_id, p.model, p.sku, p.ean, p.quantity, p.price,
-					p.image, p.manufacturer_id, m.name AS vendor,
+					p.image, p.manufacturer_id, p.tax_class_id, m.name AS vendor,
 					pd.name, pd.description,
 					(SELECT p2c.category_id FROM `" . DB_PREFIX . "product_to_category` p2c
 						INNER JOIN `" . DB_PREFIX . "category` cc ON cc.category_id = p2c.category_id AND cc.status = 1
@@ -178,16 +193,17 @@ class Generator {
 					continue;
 				}
 
-				$rawBase = (float)$r['price'];
-				$base    = round($rawBase * $multiplier, $decimals);
-				$special = null;
+				$rawBase    = (float)$r['price'];
+				$taxClassId = (int)$r['tax_class_id'];
+				$regular    = $this->retail($rawBase, $taxClassId, $applyTax, $rate, $multiplier, $decimals);
+				$special    = null;
 				if (isset($specials[$pid])) {
 					$eff = $this->effectiveSpecial($rawBase, $specials[$pid]['type'], (float)$specials[$pid]['price']);
 					if ($eff !== null) {
-						$special = round($eff * $multiplier, $decimals);
+						$special = $this->retail($eff, $taxClassId, $applyTax, $rate, $multiplier, $decimals);
 					}
 				}
-				$price   = ($special !== null && $special > 0) ? $special : $base;
+				$price   = ($special !== null && $special > 0) ? $special : $regular;
 				if ($price <= 0) {
 					continue;
 				}
@@ -203,8 +219,8 @@ class Generator {
 				$w->writeElement('name', $name);
 
 				$w->writeElement('price', $this->num($price, $decimals));
-				if ($special !== null && $special > 0 && $base > $special) {
-					$w->writeElement('price_old', $this->num($base, $decimals));
+				if ($special !== null && $special > 0 && $regular > $special) {
+					$w->writeElement('price_old', $this->num($regular, $decimals));
 				}
 				$w->writeElement('currencyId', $currency);
 
@@ -270,6 +286,171 @@ class Generator {
 
 	private function num(float $v, int $decimals): string {
 		return number_format($v, $decimals, '.', '');
+	}
+
+	/**
+	 * WHERE fragment shared by the feed and by the admin "test" counter.
+	 *
+	 * ⚠ The stock rule belongs HERE, not only in the write loop. The counter
+	 * used to run a copy of the query without it, so the settings page promised
+	 * 19 offers while the feed contained 17 — and the merchant had no way to
+	 * tell which number the marketplace would see.
+	 */
+	public function productWhere(): string {
+		$where = ["p.status = 1", "p.date_available <= NOW()"];
+
+		if ($this->settings->get('include_out_of_stock', '0') !== '1') {
+			$where[] = "p.quantity > " . (int)$this->settings->get('stock_threshold', 0);
+		}
+
+		$manFilter = array_filter(array_map('intval', (array)$this->settings->get('manufacturer_ids', [])));
+		$catFilter = array_filter(array_map('intval', (array)$this->settings->get('category_ids', [])));
+
+		if ($manFilter) {
+			$where[] = "p.manufacturer_id IN (" . implode(',', $manFilter) . ")";
+		}
+		if ($catFilter) {
+			$where[] = "p.product_id IN (SELECT product_id FROM `" . DB_PREFIX . "product_to_category` WHERE category_id IN (" . implode(',', $catFilter) . "))";
+		}
+
+		return implode(' AND ', $where);
+	}
+
+	/**
+	 * Tax rules for the store's own address, exactly as
+	 * catalog/controller/startup/startup.php sets them up for a visitor with no
+	 * address of their own: `based` follows `config_tax_default`, the geo zone
+	 * is matched against `config_country_id` / `config_zone_id`, and the rates
+	 * are filtered by the default customer group.
+	 *
+	 * ⚠ Loaded with plain SQL rather than the Cart\Tax library on purpose: that
+	 * library is registered by the STOREFRONT startup only, so an admin
+	 * "Rebuild cache" click would silently produce a tax-free feed while the
+	 * cron job produced a taxed one — two different prices for the same shop.
+	 */
+	private function taxRates(): array {
+		if ($this->taxRates !== null) {
+			return $this->taxRates;
+		}
+
+		$this->taxRates = [];
+
+		$based = (string)$this->cfg('config_tax_default');
+		if (!in_array($based, ['shipping', 'payment', 'store'], true)) {
+			$based = 'shipping';
+		}
+
+		$rows = $this->db->query("SELECT tr1.tax_class_id, tr2.tax_rate_id, tr2.rate, tr2.type
+			FROM `" . DB_PREFIX . "tax_rule` tr1
+			LEFT JOIN `" . DB_PREFIX . "tax_rate` tr2 ON (tr1.tax_rate_id = tr2.tax_rate_id)
+			INNER JOIN `" . DB_PREFIX . "tax_rate_to_customer_group` tr2cg ON (tr2.tax_rate_id = tr2cg.tax_rate_id)
+			LEFT JOIN `" . DB_PREFIX . "zone_to_geo_zone` z2gz ON (tr2.geo_zone_id = z2gz.geo_zone_id)
+			WHERE tr1.based = '" . $based . "'
+				AND tr2cg.customer_group_id = " . (int)$this->customerGroupId . "
+				AND z2gz.country_id = " . (int)$this->cfg('config_country_id') . "
+				AND (z2gz.zone_id = 0 OR z2gz.zone_id = " . (int)$this->cfg('config_zone_id') . ")
+			ORDER BY tr1.priority ASC")->rows;
+
+		foreach ($rows as $row) {
+			$this->taxRates[(int)$row['tax_class_id']][(int)$row['tax_rate_id']] = [
+				'rate' => (float)$row['rate'],
+				'type' => (string)$row['type'],
+			];
+		}
+
+		return $this->taxRates;
+	}
+
+	/** Tax on $value for a tax class, matching Cart\Tax::getRates(). */
+	private function taxAmount(float $value, int $taxClassId): float {
+		$rates = $this->taxRates();
+
+		if ($taxClassId <= 0 || !isset($rates[$taxClassId])) {
+			return 0.0;
+		}
+
+		$amount = 0.0;
+
+		foreach ($rates[$taxClassId] as $rate) {
+			if ($rate['type'] === 'F') {
+				$amount += $rate['rate'];
+			} elseif ($rate['type'] === 'P') {
+				$amount += ($value / 100 * $rate['rate']);
+			}
+		}
+
+		return $amount;
+	}
+
+	/** Exchange value of a currency code, as Cart\Currency uses it. */
+	private function currencyValue(string $code): float {
+		if ($this->currencyValues === null) {
+			$this->currencyValues = [];
+
+			foreach ($this->db->query("SELECT code, value FROM `" . DB_PREFIX . "currency`")->rows as $row) {
+				$this->currencyValues[strtoupper((string)$row['code'])] = (float)$row['value'];
+			}
+		}
+
+		return $this->currencyValues[strtoupper($code)] ?? 0.0;
+	}
+
+	/**
+	 * Turn a raw `product.price` into the number a buyer sees on the site.
+	 *
+	 * Same order as the storefront: tax on the base value first, then the
+	 * currency multiplier — and only then our own markup coefficient.
+	 */
+	private function retail(float $base, int $taxClassId, bool $applyTax, float $rate, float $multiplier, int $decimals): float {
+		$value = $base;
+
+		if ($applyTax) {
+			$value += $this->taxAmount($value, $taxClassId);
+		}
+
+		if ($rate > 0) {
+			$value *= $rate;
+		}
+
+		return round($value * $multiplier, $decimals);
+	}
+
+	/**
+	 * Rebuild the cached feed files. Shared by the admin button and the cron
+	 * controller so the two can never drift apart.
+	 *
+	 * @return array<string,int> dialect => offer count
+	 */
+	public static function rebuildCache($db, Settings $settings, string $imageBase, int $customerGroupId): array {
+		$dir    = Settings::prepareCacheDir();
+		$secret = (string)$settings->get('feed_token', '');
+
+		$generator = new self($db, $settings, $settings->languageId(), $imageBase, $customerGroupId);
+		$done      = [];
+		$keep      = [];
+
+		foreach (array_keys(self::DIALECTS) as $dialect) {
+			if ($settings->get($dialect . '_enabled', '1') !== '1') {
+				continue;
+			}
+
+			$tmp   = $dir . 'feed_' . $dialect . '.tmp';
+			$final = Settings::cacheFile($dialect, $secret);
+
+			$done[$dialect] = $generator->stream($dialect, $tmp);
+
+			if (is_file($tmp)) {
+				@rename($tmp, $final);
+				$keep[] = basename($final);
+			}
+		}
+
+		// A new token means new filenames; files written under the old one would
+		// otherwise sit there forever, still readable by anyone who saved the
+		// old path. A disabled feed loses its copy for the same reason.
+		Settings::purgeCache($keep);
+
+		return $done;
 	}
 
 	/** @param int[] $ids */

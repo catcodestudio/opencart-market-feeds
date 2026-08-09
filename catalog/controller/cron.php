@@ -20,30 +20,11 @@ class Cron extends \Opencart\System\Engine\Controller {
 			return;
 		}
 
-		$dir = DIR_STORAGE . 'cc_feeds/';
-		if (!is_dir($dir)) {
-			@mkdir($dir, 0755, true);
-		}
-
-		$imageBase = rtrim((string)$this->config->get('config_url'), '/') . '/image';
-		$generator = new Generator(
+		Generator::rebuildCache(
 			$this->db,
 			$settings,
-			$settings->languageId(),
-			$imageBase,
+			rtrim((string)$this->config->get('config_url'), '/') . '/image',
 			(int)$this->config->get('config_customer_group_id')
 		);
-
-		foreach (['rozetka', 'prom'] as $dialect) {
-			if ($settings->get($dialect . '_enabled', '1') !== '1') {
-				continue;
-			}
-			$tmp = $dir . 'feed_' . $dialect . '.tmp';
-			$final = $dir . 'feed_' . $dialect . '.xml';
-			$generator->stream($dialect, $tmp);
-			if (is_file($tmp)) {
-				@rename($tmp, $final);
-			}
-		}
 	}
 }

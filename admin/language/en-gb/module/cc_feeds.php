@@ -55,5 +55,12 @@ $_['help_token']             = 'Secret part of the feed URL. Keep it private —
 $_['help_special']           = 'When a product has an active special it becomes &lt;price&gt;, and the regular price becomes &lt;price_old&gt;.';
 $_['help_cache']             = 'The feed is generated to a file on schedule (cron extension/cc_feeds/cron.rebuild) and served instantly.';
 
+$_['entry_include_tax']      = 'Prices with tax';
+$_['help_include_tax']       = 'The feed price must match the product page, otherwise a marketplace can suspend the price list.';
+$_['text_shop_tax_on']       = 'The shop shows prices with tax — leave this on.';
+$_['text_shop_tax_off']      = 'The shop shows prices without tax, so no tax is added to the feed.';
+$_['text_currency_base']     = 'Shop currency (%s)';
+$_['help_currency']          = 'Prices are converted from the shop currency using its OpenCart exchange rate.';
+
 // Error
 $_['error_permission']       = 'You do not have permission to manage this module!';

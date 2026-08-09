@@ -74,8 +74,10 @@ class Feed extends \Opencart\System\Engine\Controller {
 	}
 
 	private function cachePath(string $dialect): string {
-		$dir = DIR_STORAGE . 'cc_feeds/';
-		return $dir . 'feed_' . preg_replace('/[^a-z]/', '', $dialect) . '.xml';
+		// The filename carries a digest of the feed token: DIR_STORAGE is not
+		// always outside the web root, and a plain GET of the cache file would
+		// otherwise hand over the whole catalogue with no token at all.
+		return Settings::cacheFile($dialect, (string)(new Settings($this->config))->get('feed_token', ''));
 	}
 
 	private function deny(int $code, string $msg): void {

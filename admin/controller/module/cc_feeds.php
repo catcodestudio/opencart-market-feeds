@@ -62,6 +62,14 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$data['categories'] = $this->categoryTree();
 		$data['manufacturers'] = $this->model_catalog_manufacturer->getManufacturers([]);
 
+		$this->load->model('localisation/currency');
+		$data['currencies']   = $this->model_localisation_currency->getCurrencies();
+		$data['base_currency'] = (string)$this->config->get('config_currency');
+
+		// Shown next to the tax switch: the module can only mirror the shop, and
+		// the merchant should see which way the shop is set.
+		$data['shop_shows_tax'] = (string)$this->config->get('config_tax') === '1';
+
 		$data['header']      = $this->load->controller('common/header');
 		$data['column_left'] = $this->load->controller('common/column_left');
 		$data['footer']      = $this->load->controller('common/footer');
@@ -138,16 +146,11 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		}
 		$settings = new Settings($this->config);
 
-		$catFilter = array_filter(array_map('intval', (array)$settings->get('category_ids', [])));
-		$manFilter = array_filter(array_map('intval', (array)$settings->get('manufacturer_ids', [])));
-		$where = ["p.status = 1", "p.date_available <= NOW()"];
-		if ($manFilter) {
-			$where[] = "p.manufacturer_id IN (" . implode(',', $manFilter) . ")";
-		}
-		if ($catFilter) {
-			$where[] = "p.product_id IN (SELECT product_id FROM `" . DB_PREFIX . "product_to_category` WHERE category_id IN (" . implode(',', $catFilter) . "))";
-		}
-		$total = (int)$this->db->query("SELECT COUNT(*) AS c FROM `" . DB_PREFIX . "product` p WHERE " . implode(' AND ', $where))->row['c'];
+		// ⚠ Same WHERE the generator uses, stock rule included — a counter that
+		// disagrees with the feed is worse than no counter.
+		$generator = new Generator($this->db, $settings, $settings->languageId(), $this->imageBase(), (int)$this->config->get('config_customer_group_id'));
+
+		$total = (int)$this->db->query("SELECT COUNT(*) AS c FROM `" . DB_PREFIX . "product` p WHERE " . $generator->productWhere())->row['c'];
 
 		$this->jsonResponse([
 			'success' => sprintf($this->language->get('text_test_ok'), $total),
@@ -163,30 +166,29 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		}
 		$settings = new Settings($this->config);
 
-		$dir = DIR_STORAGE . 'cc_feeds/';
-		if (!is_dir($dir)) {
-			@mkdir($dir, 0755, true);
-		}
-		$imageBase = rtrim((string)$this->config->get('config_url'), '/') . '/image';
-		$generator = new Generator($this->db, $settings, $settings->languageId(), $imageBase, (int)$this->config->get('config_customer_group_id'));
+		$done = Generator::rebuildCache(
+			$this->db,
+			$settings,
+			$this->imageBase(),
+			(int)$this->config->get('config_customer_group_id')
+		);
 
-		$done = [];
-		foreach (['rozetka', 'prom'] as $dialect) {
-			if ($settings->get($dialect . '_enabled', '1') !== '1') {
-				continue;
-			}
-			$tmp = $dir . 'feed_' . $dialect . '.tmp';
-			$final = $dir . 'feed_' . $dialect . '.xml';
-			$count = $generator->stream($dialect, $tmp);
-			if (is_file($tmp)) {
-				@rename($tmp, $final);
-			}
-			$done[$dialect] = $count;
-		}
 		$this->jsonResponse(['success' => $this->language->get('text_rebuilt'), 'counts' => $done]);
 	}
 
+	private function imageBase(): string {
+		$store = rtrim((string)$this->config->get('config_url'), '/');
+
+		if ($store === '') {
+			$store = rtrim((string)(defined('HTTP_CATALOG') ? HTTP_CATALOG : ''), '/');
+		}
+
+		return $store . '/image';
+	}
+
 	public function install(): void {
+		Settings::prepareCacheDir();
+
 		$this->load->model('setting/event');
 		$this->load->model('setting/cron');
 
@@ -200,8 +202,17 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		} catch (\Throwable $e) {}
 	}
 
+	/**
+	 * ⚠ The cached XML has to go with it. Uninstall drops the setting group —
+	 * the feed token with it — so nothing is left that could ever serve or
+	 * clean those files again, while their path stays readable to anyone who
+	 * noted it down. An uninstalled module must not keep handing out the
+	 * catalogue.
+	 */
 	public function uninstall(): void {
 		$this->load->model('setting/cron');
 		try { $this->model_setting_cron->deleteCronByCode('cc_feeds_rebuild'); } catch (\Throwable $e) {}
+
+		Settings::purgeCache();
 	}
 }

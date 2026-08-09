@@ -74,7 +74,12 @@
               </div>
               <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_currency }}</label>
-                <div class="col-sm-9"><input type="text" name="module_cc_feeds_currency" value="{{ currency }}" class="form-control" style="max-width:120px"/></div>
+                <div class="col-sm-9"><select name="module_cc_feeds_currency" class="form-select" style="max-width:280px">
+                  <option value="">{{ text_currency_base|format(base_currency) }}</option>
+                  {% for item in currencies %}
+                  <option value="{{ item.code }}"{{ currency == item.code ? ' selected' : '' }}>{{ item.code }} — {{ item.title }}</option>
+                  {% endfor %}
+                </select><div class="form-text">{{ help_currency }}</div></div>
               </div>
               <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_cache }}</label>
@@ -94,6 +99,15 @@
                 <label class="col-sm-3 col-form-label">{{ entry_decimals }}</label>
                 <div class="col-sm-9"><input type="number" min="0" max="4" name="module_cc_feeds_price_decimals" value="{{ price_decimals }}" class="form-control" style="max-width:120px"/></div>
               </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_include_tax }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_include_tax" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_include_tax" value="1" class="form-check-input"{{ include_tax == '1' ? ' checked' : '' }}/>
+                </div><div class="form-text">{{ help_include_tax }}</div>
+                <div class="form-text"><i class="fa-solid fa-circle-info"></i> {{ shop_shows_tax ? text_shop_tax_on : text_shop_tax_off }}</div></div>
+              </div>
+
               <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_special }}</label>
                 <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
