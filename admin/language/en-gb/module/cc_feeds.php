@@ -1,6 +1,6 @@
 <?php
 // Heading
-$_['heading_title']          = 'Market Feeds (Rozetka / Prom)';
+$_['heading_title']          = 'Market Feeds (Rozetka / Prom / Google / Meta)';
 
 // Text
 $_['text_extension']         = 'Extensions';
@@ -61,6 +61,28 @@ $_['text_shop_tax_on']       = 'The shop shows prices with tax — leave this on
 $_['text_shop_tax_off']      = 'The shop shows prices without tax, so no tax is added to the feed.';
 $_['text_currency_base']     = 'Shop currency (%s)';
 $_['help_currency']          = 'Prices are converted from the shop currency using its OpenCart exchange rate.';
+
+// Google Merchant / Meta (1.2.0)
+$_['text_merchant']            = 'Google & Meta';
+$_['text_feed_off']            = 'Off — enable it on the "Google & Meta" tab.';
+$_['text_none_selected']       = '— none —';
+$_['text_rebuilt_merchant']    = 'Google and Meta feeds are served live and will be written to file on the next cron run: SEO product links can only be built by the storefront.';
+$_['entry_google']             = 'Google Merchant Center feed';
+$_['entry_meta']               = 'Meta (Facebook / Instagram) feed';
+$_['entry_size_options']       = 'Size options';
+$_['entry_color_options']      = 'Colour options';
+$_['entry_handling_time']      = 'Dispatch time, working days';
+$_['entry_handling_attribute'] = 'Attribute holding the dispatch time';
+$_['entry_merchant_brand']     = 'Default brand';
+$_['entry_google_category']    = 'Google category (google_product_category)';
+$_['entry_merchant_mpn']       = 'MPN from field';
+$_['help_merchant']            = 'An RSS feed in Google Merchant Center format, which the Meta catalogue accepts as well. Prices, tax, specials, stock and filters are the same as in the Rozetka and Prom feeds.';
+$_['help_size_options']        = 'Values of these options become separate variants with g:size.';
+$_['help_variants']            = 'Values become variants with g:color. All variants of a product share g:item_group_id = product ID, so Google and Meta group them into one product. Variant price = product price + option price; availability follows the value stock when stock subtraction is on for it.';
+$_['help_handling_time']       = 'How many working days a product takes to ship: "0", "2" or "2-6". Sent to Google as g:min_handling_time / g:max_handling_time. On Prom.ua the "Ready to ship" status is set only for products that ship within 1 day. Empty — not sent.';
+$_['help_handling_attribute']  = 'When a product has this attribute filled in (e.g. "Dispatch time: 2-6"), it wins over the value above.';
+$_['help_merchant_brand']      = 'For products without a manufacturer. Google and Meta require a brand.';
+$_['help_google_category']     = 'Optional. ID or path from the Google taxonomy, e.g. 187 (Shoes).';
 
 // Error
 $_['error_permission']       = 'You do not have permission to manage this module!';

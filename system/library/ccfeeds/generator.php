@@ -2,9 +2,11 @@
 namespace Opencart\System\Library\Ccfeeds;
 
 require_once __DIR__ . '/settings.php';
+require_once __DIR__ . '/merchant.php';
 
 /**
- * Streaming YML/XML feed generator for Rozetka and Prom.ua.
+ * Streaming feed generator: YML for Rozetka and Prom.ua, RSS 2.0 (g: namespace)
+ * for Google Merchant Center and the Meta catalogue.
  *
  * Output is written incrementally through XMLWriter straight to php://output
  * (or a file), so a catalog of tens of thousands of offers never has to sit in
@@ -12,6 +14,8 @@ require_once __DIR__ . '/settings.php';
  * specials are batch-loaded per page to keep the query count bounded.
  */
 class Generator {
+	use MerchantFeed;
+
 	private $db;
 	private Settings $settings;
 	private int $languageId;
@@ -27,11 +31,25 @@ class Generator {
 	/** Lazily loaded currency code => exchange value. */
 	private ?array $currencyValues = null;
 
-	/** Per-dialect tag differences. */
-	private const DIALECTS = [
-		'rozetka' => ['qty_tag' => 'stock_quantity'],
-		'prom'    => ['qty_tag' => 'quantity_in_stock'],
+	/** @var callable|null fn(int $productId): string — storefront product URL. */
+	private $productLink = null;
+
+	/**
+	 * Per-dialect differences. `format` rss = Google/Meta item feed; those carry
+	 * product links, which only the storefront can build with SEO URLs.
+	 */
+	public const DIALECTS = [
+		'rozetka' => ['format' => 'yml', 'qty_tag' => 'stock_quantity'],
+		'prom'    => ['format' => 'yml', 'qty_tag' => 'quantity_in_stock'],
+		'google'  => ['format' => 'rss', 'qty_tag' => ''],
+		'meta'    => ['format' => 'rss', 'qty_tag' => ''],
 	];
+
+	/**
+	 * Prom.ua «Готово до відправки» (offer attribute in_stock="true") is only
+	 * claimed when the product really leaves within this many working days.
+	 */
+	private const PROM_READY_MAX_DAYS = 1;
 
 	public function __construct($db, Settings $settings, int $languageId, string $imageBase, int $customerGroupId = 0) {
 		$this->db              = $db;
@@ -41,13 +59,40 @@ class Generator {
 		$this->customerGroupId = $customerGroupId;
 	}
 
+	/** Storefront link builder; without it product links fall back to index.php?route=… */
+	public function setProductLink(callable $builder): void {
+		$this->productLink = $builder;
+	}
+
 	/**
-	 * Stream a feed for the given dialect ('rozetka'|'prom') to $target
-	 * ('php://output' by default, or a filesystem path for cache generation).
+	 * Product URL exactly as the storefront prints it — SEO keyword included
+	 * when SEO URLs are on. Google checks that the landing page matches.
+	 * Used by the feed and cron controllers.
+	 */
+	public static function productLinkBuilder($url, string $languageCode): callable {
+		return static function (int $productId) use ($url, $languageCode): string {
+			$args = ($languageCode !== '' ? 'language=' . $languageCode . '&' : '') . 'product_id=' . $productId;
+
+			return str_replace('&amp;', '&', (string)$url->link('product/product', $args));
+		};
+	}
+
+	public static function isLinkDialect(string $dialect): bool {
+		return (self::DIALECTS[$dialect]['format'] ?? '') === 'rss';
+	}
+
+	/**
+	 * Stream a feed for the given dialect to $target ('php://output' by
+	 * default, or a filesystem path for cache generation).
 	 * Returns the number of offers written.
 	 */
 	public function stream(string $dialect, string $target = 'php://output'): int {
 		$dialect = isset(self::DIALECTS[$dialect]) ? $dialect : 'prom';
+
+		if (self::isLinkDialect($dialect)) {
+			return $this->streamMerchant($dialect, $target);
+		}
+
 		$qtyTag  = self::DIALECTS[$dialect]['qty_tag'];
 
 		$w = new \XMLWriter();
@@ -78,7 +123,7 @@ class Generator {
 
 		// Offers.
 		$w->startElement('offers');
-		$count = $this->writeOffers($w, $currency, $qtyTag);
+		$count = $this->writeOffers($w, $currency, $qtyTag, $dialect);
 		$w->endElement(); // offers
 
 		$w->endElement(); // shop
@@ -119,8 +164,106 @@ class Generator {
 		$w->endElement();
 	}
 
-	private function writeOffers(\XMLWriter $w, string $currency, string $qtyTag): int {
-		$multiplier   = (float)$this->settings->get('price_multiplier', 1) ?: 1.0;
+	/**
+	 * Everything that turns a raw `product.price` into the storefront price,
+	 * resolved once per feed run.
+	 *
+	 * @return array{applyTax:bool,rate:float,multiplier:float,decimals:int}
+	 */
+	private function pricing(string $currency): array {
+		$multiplier = (float)$this->settings->get('price_multiplier', 1) ?: 1.0;
+		$decimals   = (int)$this->settings->get('price_decimals', 2);
+
+		// ⚠ Tax is applied only when the shop itself shows prices with tax: a
+		// feed price that disagrees with the product page is grounds for a
+		// marketplace to suspend the whole price list.
+		$applyTax = $this->settings->get('include_tax', '1') === '1' && (string)$this->cfg('config_tax') === '1';
+
+		// The catalogue is priced in the shop's base currency; the feed may be
+		// published in another one.
+		$rate         = 1.0;
+		$baseCurrency = $this->baseCurrencyCode();
+
+		if ($baseCurrency !== '' && strtoupper($currency) !== $baseCurrency) {
+			$target = $this->currencyValue($currency);
+			$origin = $this->currencyValue($baseCurrency);
+
+			if ($target > 0 && $origin > 0) {
+				$rate = $target / $origin;
+			}
+		}
+
+		return ['applyTax' => $applyTax, 'rate' => $rate, 'multiplier' => $multiplier, 'decimals' => $decimals];
+	}
+
+	/**
+	 * The currency prices are STORED in — the one whose rate is 1.
+	 *
+	 * ⚠ Not simply config_currency: that is the currency the shop DISPLAYS by
+	 * default. A shop showing UAH while keeping prices in USD (UAH = 48) got
+	 * dollar amounts labelled UAH, 48 times too cheap.
+	 */
+	private function baseCurrencyCode(): string {
+		$display = strtoupper((string)$this->cfg('config_currency'));
+
+		if ($display !== '' && abs($this->currencyValue($display) - 1.0) < 1e-7) {
+			return $display;
+		}
+
+		foreach ($this->currencyValues ?? [] as $code => $value) {
+			if (abs($value - 1.0) < 1e-7) {
+				return (string)$code;
+			}
+		}
+
+		return $display;
+	}
+
+	/** One page of products that pass the shared WHERE. */
+	private function fetchPage(string $whereSql, int $offset, int $pageSize): array {
+		return $this->db->query("SELECT p.product_id, p.model, p.sku, p.ean, p.quantity, p.price,
+				p.image, p.manufacturer_id, p.tax_class_id, m.name AS vendor,
+				pd.name, pd.description,
+				(SELECT p2c.category_id FROM `" . DB_PREFIX . "product_to_category` p2c
+					INNER JOIN `" . DB_PREFIX . "category` cc ON cc.category_id = p2c.category_id AND cc.status = 1
+					WHERE p2c.product_id = p.product_id
+					ORDER BY (SELECT COUNT(*) FROM `" . DB_PREFIX . "category_path` cp WHERE cp.category_id = p2c.category_id) DESC
+					LIMIT 1) AS category_id
+			FROM `" . DB_PREFIX . "product` p
+			LEFT JOIN `" . DB_PREFIX . "manufacturer` m ON m.manufacturer_id = p.manufacturer_id
+			LEFT JOIN `" . DB_PREFIX . "product_description` pd
+				ON pd.product_id = p.product_id AND pd.language_id = " . (int)$this->languageId . "
+			WHERE " . $whereSql . "
+			ORDER BY p.product_id ASC
+			LIMIT " . (int)$offset . ", " . (int)$pageSize)->rows;
+	}
+
+	/** Regular and special storefront price of a product (special = null when none). */
+	private function productPrices(array $row, array $specials, array $pc, float $optionDelta = 0.0): array {
+		$pid        = (int)$row['product_id'];
+		$rawBase    = (float)$row['price'];
+		$taxClassId = (int)$row['tax_class_id'];
+
+		// Options are added on top of the product (or special) price, exactly as
+		// the cart does, and taxed together with it.
+		$regular = $this->retail($rawBase + $optionDelta, $taxClassId, $pc['applyTax'], $pc['rate'], $pc['multiplier'], $pc['decimals']);
+		$special = null;
+
+		if (isset($specials[$pid])) {
+			$eff = $this->effectiveSpecial($rawBase, $specials[$pid]['type'], (float)$specials[$pid]['price']);
+			if ($eff !== null) {
+				$special = $this->retail($eff + $optionDelta, $taxClassId, $pc['applyTax'], $pc['rate'], $pc['multiplier'], $pc['decimals']);
+			}
+		}
+
+		if ($special !== null && $special <= 0) {
+			$special = null;
+		}
+
+		return [$regular, $special];
+	}
+
+	private function writeOffers(\XMLWriter $w, string $currency, string $qtyTag, string $dialect): int {
 		$decimals     = (int)$this->settings->get('price_decimals', 2);
 		$useSpecial   = $this->settings->get('use_special', '1') === '1';
 		$inclOut      = $this->settings->get('include_out_of_stock', '0') === '1';
@@ -133,25 +276,7 @@ class Generator {
 		$skuField     = (string)$this->settings->get('sku_field', 'sku');
 		$exportParams = $this->settings->get('export_params', '1') === '1';
 		$nameSuffix   = (string)$this->settings->get('name_suffix', '');
-
-		// ⚠ Tax is applied only when the shop itself shows prices with tax: a
-		// feed price that disagrees with the product page is grounds for a
-		// marketplace to suspend the whole price list.
-		$applyTax = $this->settings->get('include_tax', '1') === '1' && (string)$this->cfg('config_tax') === '1';
-
-		// The catalogue is priced in the shop's base currency; the feed may be
-		// published in another one.
-		$rate         = 1.0;
-		$baseCurrency = strtoupper((string)$this->cfg('config_currency'));
-
-		if ($baseCurrency !== '' && strtoupper($currency) !== $baseCurrency) {
-			$target = $this->currencyValue($currency);
-			$origin = $this->currencyValue($baseCurrency);
-
-			if ($target > 0 && $origin > 0) {
-				$rate = $target / $origin;
-			}
-		}
+		$pc           = $this->pricing($currency);
 
 		$whereSql = $this->productWhere();
 
@@ -160,21 +285,7 @@ class Generator {
 		$written  = 0;
 
 		while (true) {
-			$rows = $this->db->query("SELECT p.product_id, p.model, p.sku, p.ean, p.quantity, p.price,
-					p.image, p.manufacturer_id, p.tax_class_id, m.name AS vendor,
-					pd.name, pd.description,
-					(SELECT p2c.category_id FROM `" . DB_PREFIX . "product_to_category` p2c
-						INNER JOIN `" . DB_PREFIX . "category` cc ON cc.category_id = p2c.category_id AND cc.status = 1
-						WHERE p2c.product_id = p.product_id
-						ORDER BY (SELECT COUNT(*) FROM `" . DB_PREFIX . "category_path` cp WHERE cp.category_id = p2c.category_id) DESC
-						LIMIT 1) AS category_id
-				FROM `" . DB_PREFIX . "product` p
-				LEFT JOIN `" . DB_PREFIX . "manufacturer` m ON m.manufacturer_id = p.manufacturer_id
-				LEFT JOIN `" . DB_PREFIX . "product_description` pd
-					ON pd.product_id = p.product_id AND pd.language_id = " . (int)$this->languageId . "
-				WHERE " . $whereSql . "
-				ORDER BY p.product_id ASC
-				LIMIT " . (int)$offset . ", " . (int)$pageSize)->rows;
+			$rows = $this->fetchPage($whereSql, $offset, $pageSize);
 
 			if (!$rows) {
 				break;
@@ -184,6 +295,7 @@ class Generator {
 			$images   = $this->batchImages($ids, $imageLimit);
 			$specials = $useSpecial ? $this->batchSpecials($ids) : [];
 			$params   = $exportParams ? $this->batchParams($ids) : [];
+			$handling = $dialect === 'prom' ? $this->batchHandling($ids) : [];
 
 			foreach ($rows as $r) {
 				$pid   = (int)$r['product_id'];
@@ -193,17 +305,8 @@ class Generator {
 					continue;
 				}
 
-				$rawBase    = (float)$r['price'];
-				$taxClassId = (int)$r['tax_class_id'];
-				$regular    = $this->retail($rawBase, $taxClassId, $applyTax, $rate, $multiplier, $decimals);
-				$special    = null;
-				if (isset($specials[$pid])) {
-					$eff = $this->effectiveSpecial($rawBase, $specials[$pid]['type'], (float)$specials[$pid]['price']);
-					if ($eff !== null) {
-						$special = $this->retail($eff, $taxClassId, $applyTax, $rate, $multiplier, $decimals);
-					}
-				}
-				$price   = ($special !== null && $special > 0) ? $special : $regular;
+				[$regular, $special] = $this->productPrices($r, $specials, $pc);
+				$price   = $special ?? $regular;
 				if ($price <= 0) {
 					continue;
 				}
@@ -211,6 +314,13 @@ class Generator {
 				$w->startElement('offer');
 				$w->writeAttribute('id', (string)$pid);
 				$w->writeAttribute('available', $inStk ? $availIn : $availOut);
+
+				// «Готово до відправки» only for what truly ships at once; a product
+				// that is "in stock" but leaves in 2–6 days keeps the plain status.
+				$days = $handling[$pid] ?? null;
+				if ($dialect === 'prom' && $inStk && $days !== null && $days[1] <= self::PROM_READY_MAX_DAYS) {
+					$w->writeAttribute('in_stock', 'true');
+				}
 
 				$name = trim((string)$r['name']);
 				if ($nameSuffix !== '') {
@@ -421,16 +531,27 @@ class Generator {
 	 *
 	 * @return array<string,int> dialect => offer count
 	 */
-	public static function rebuildCache($db, Settings $settings, string $imageBase, int $customerGroupId): array {
+	public static function rebuildCache($db, Settings $settings, string $imageBase, int $customerGroupId, ?callable $productLink = null): array {
 		$dir    = Settings::prepareCacheDir();
 		$secret = (string)$settings->get('feed_token', '');
 
 		$generator = new self($db, $settings, $settings->languageId(), $imageBase, $customerGroupId);
+		if ($productLink !== null) {
+			$generator->setProductLink($productLink);
+		}
 		$done      = [];
 		$keep      = [];
 
 		foreach (array_keys(self::DIALECTS) as $dialect) {
-			if ($settings->get($dialect . '_enabled', '1') !== '1') {
+			if ($settings->get($dialect . '_enabled', self::isLinkDialect($dialect) ? '0' : '1') !== '1') {
+				continue;
+			}
+
+			// ⚠ Google/Meta items carry product links, and SEO URLs exist only in
+			// the storefront. Admin's "Rebuild" has no link builder, so instead
+			// of caching index.php?route=… links it drops the old file: the feed
+			// is then generated live until the next cron run writes a proper one.
+			if ($productLink === null && self::isLinkDialect($dialect)) {
 				continue;
 			}
 
@@ -466,7 +587,7 @@ class Generator {
 		foreach ($mains as $m) {
 			$img = trim((string)$m['image']);
 			if ($img !== '') {
-				$out[(int)$m['product_id']][] = $this->imageBase . $this->encPath($img);
+				$out[(int)$m['product_id']][] = $this->imageUrl($img);
 			}
 		}
 
@@ -477,13 +598,64 @@ class Generator {
 			if ($img === '' || count($out[$pid] ?? []) >= $limit) {
 				continue;
 			}
-			$out[$pid][] = $this->imageBase . $this->encPath($img);
+			$out[$pid][] = $this->imageUrl($img);
 		}
 		return $out;
 	}
 
+	/**
+	 * ⚠ Shops that keep photos on a CDN store absolute URLs in product.image;
+	 * gluing the image base onto those produced https://shop/image/https%3A//cdn/…
+	 */
+	private function imageUrl(string $img): string {
+		if (preg_match('~^https?://~i', $img)) {
+			return $img;
+		}
+
+		return $this->imageBase . $this->encPath($img);
+	}
+
 	private function encPath(string $path): string {
 		return implode('/', array_map('rawurlencode', explode('/', $path)));
+	}
+
+	/**
+	 * Real dispatch time per product: the value of the configured attribute
+	 * wins, the shop-wide default fills the rest.
+	 *
+	 * @param int[] $ids
+	 * @return array<int,array{0:int,1:int}>
+	 */
+	private function batchHandling(array $ids): array {
+		if (!$ids) {
+			return [];
+		}
+
+		$default = Settings::parseHandling((string)$this->settings->get('handling_time', ''));
+		$attrId  = (int)$this->settings->get('handling_attribute_id', 0);
+		$out     = [];
+
+		if ($default !== null) {
+			foreach ($ids as $id) {
+				$out[$id] = $default;
+			}
+		}
+
+		if ($attrId > 0) {
+			$rows = $this->db->query("SELECT product_id, text FROM `" . DB_PREFIX . "product_attribute`
+				WHERE product_id IN (" . implode(',', $ids) . ")
+					AND attribute_id = " . $attrId . "
+					AND language_id = " . (int)$this->languageId)->rows;
+
+			foreach ($rows as $row) {
+				$days = Settings::parseHandling(html_entity_decode((string)$row['text'], ENT_QUOTES, 'UTF-8'));
+				if ($days !== null) {
+					$out[(int)$row['product_id']] = $days;
+				}
+			}
+		}
+
+		return $out;
 	}
 
 	/**

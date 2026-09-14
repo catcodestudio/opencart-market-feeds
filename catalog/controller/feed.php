@@ -11,6 +11,8 @@ use Opencart\System\Library\Ccfeeds\Generator;
  * Storefront feed endpoints:
  *   index.php?route=extension/cc_feeds/feed.rozetka&token=XXXX
  *   index.php?route=extension/cc_feeds/feed.prom&token=XXXX
+ *   index.php?route=extension/cc_feeds/feed.google&token=XXXX
+ *   index.php?route=extension/cc_feeds/feed.meta&token=XXXX
  */
 class Feed extends \Opencart\System\Engine\Controller {
 
@@ -22,6 +24,14 @@ class Feed extends \Opencart\System\Engine\Controller {
 		$this->serve('prom');
 	}
 
+	public function google(): void {
+		$this->serve('google');
+	}
+
+	public function meta(): void {
+		$this->serve('meta');
+	}
+
 	private function serve(string $dialect): void {
 		$settings = new Settings($this->config);
 
@@ -30,7 +40,7 @@ class Feed extends \Opencart\System\Engine\Controller {
 			return;
 		}
 		$enabledKey = $dialect . '_enabled';
-		if ($settings->get($enabledKey, '1') !== '1') {
+		if ($settings->get($enabledKey, Generator::isLinkDialect($dialect) ? '0' : '1') !== '1') {
 			$this->deny(404, 'Feed disabled');
 			return;
 		}
@@ -66,6 +76,7 @@ class Feed extends \Opencart\System\Engine\Controller {
 			$imageBase,
 			(int)$this->config->get('config_customer_group_id')
 		);
+		$generator->setProductLink(Generator::productLinkBuilder($this->url, $generator->languageCode()));
 
 		// Direct output — bypass OpenCart's response buffering for large feeds.
 		header('Content-Type: application/xml; charset=utf-8');

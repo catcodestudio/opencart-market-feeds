@@ -1,6 +1,6 @@
 <?php
 // Heading
-$_['heading_title']          = 'Market Feeds (Rozetka / Prom)';
+$_['heading_title']          = 'Market Feeds (Rozetka / Prom / Google / Meta)';
 
 // Text
 $_['text_extension']         = 'Розширення';
@@ -61,6 +61,28 @@ $_['text_shop_tax_on']       = 'Магазин показує ціни з под
 $_['text_shop_tax_off']      = 'Магазин показує ціни без податку, тому податок у фід не додається.';
 $_['text_currency_base']     = 'Валюта магазину (%s)';
 $_['help_currency']          = 'Ціни перераховуються з валюти магазину за її курсом в OpenCart.';
+
+// Google Merchant / Meta (1.2.0)
+$_['text_merchant']            = 'Google і Meta';
+$_['text_feed_off']            = 'Вимкнено — увімкніть на вкладці «Google і Meta».';
+$_['text_none_selected']       = '— не вибрано —';
+$_['text_rebuilt_merchant']    = 'Фіди Google і Meta віддаються наживо й перезапишуться у файл при наступному запуску cron: посилання на товари з ЧПУ будує лише вітрина.';
+$_['entry_google']             = 'Фід Google Merchant Center';
+$_['entry_meta']               = 'Фід Meta (Facebook / Instagram)';
+$_['entry_size_options']       = 'Опції «Розмір»';
+$_['entry_color_options']      = 'Опції «Колір»';
+$_['entry_handling_time']      = 'Строк відправки, робочих днів';
+$_['entry_handling_attribute'] = 'Атрибут зі строком відправки';
+$_['entry_merchant_brand']     = 'Бренд за замовчуванням';
+$_['entry_google_category']    = 'Категорія Google (google_product_category)';
+$_['entry_merchant_mpn']       = 'MPN із поля';
+$_['help_merchant']            = 'RSS-фід у форматі Google Merchant Center, який так само приймає каталог Meta. Ціни, податок, акції, наявність і фільтри — ті самі, що й у фідах Rozetka та Prom.';
+$_['help_size_options']        = 'Значення цих опцій стають окремими варіантами з g:size.';
+$_['help_variants']            = 'Значення стають варіантами з g:color. Усі варіанти товару отримують спільний g:item_group_id = ID товару, тож Google і Meta склеюють їх в одну картку. Ціна варіанта = ціна товару + ціна опції, наявність — за залишком значення, якщо для нього ввімкнено віднімання зі складу.';
+$_['help_handling_time']       = 'Скільки робочих днів товар готується до відправки: «0», «2» або «2-6». Іде в Google як g:min_handling_time / g:max_handling_time. У Prom.ua статус «Готово до відправки» ставиться лише товарам, що йдуть за 1 день. Порожньо — не передається.';
+$_['help_handling_attribute']  = 'Якщо в товару заповнено цей атрибут (напр. «Строк відправки: 2-6»), він важливіший за значення вище.';
+$_['help_merchant_brand']      = 'Для товарів без виробника. Google і Meta вимагають бренд.';
+$_['help_google_category']     = 'Необовʼязково. ID або шлях із таксономії Google, напр. 187 (Взуття).';
 
 // Error
 $_['error_permission']       = 'У вас немає прав керувати цим модулем!';

@@ -25,9 +25,17 @@
           <label class="col-sm-2 col-form-label">{{ entry_rozetka }}</label>
           <div class="col-sm-10"><input type="text" class="form-control" readonly value="{{ url_rozetka }}" onclick="this.select()"/></div>
         </div>
-        <div class="row">
+        <div class="row mb-2">
           <label class="col-sm-2 col-form-label">{{ entry_prom }}</label>
           <div class="col-sm-10"><input type="text" class="form-control" readonly value="{{ url_prom }}" onclick="this.select()"/></div>
+        </div>
+        <div class="row mb-2">
+          <label class="col-sm-2 col-form-label">{{ entry_google }}</label>
+          <div class="col-sm-10">{% if google_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_google }}" onclick="this.select()"/>{% else %}<div class="form-control-plaintext text-muted">{{ text_feed_off }}</div>{% endif %}</div>
+        </div>
+        <div class="row">
+          <label class="col-sm-2 col-form-label">{{ entry_meta }}</label>
+          <div class="col-sm-10">{% if meta_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_meta }}" onclick="this.select()"/>{% else %}<div class="form-control-plaintext text-muted">{{ text_feed_off }}</div>{% endif %}</div>
         </div>
       </div>
     </div>
@@ -40,6 +48,7 @@
             <li class="nav-item"><a class="nav-link active" href="#tab-general" data-bs-toggle="tab">{{ text_general }}</a></li>
             <li class="nav-item"><a class="nav-link" href="#tab-filters" data-bs-toggle="tab">{{ text_filters }}</a></li>
             <li class="nav-item"><a class="nav-link" href="#tab-output" data-bs-toggle="tab">{{ text_output }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="#tab-merchant" data-bs-toggle="tab">{{ text_merchant }}</a></li>
           </ul>
           <div class="tab-content">
 
@@ -195,6 +204,69 @@
               <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_name_suffix }}</label>
                 <div class="col-sm-9"><input type="text" name="module_cc_feeds_name_suffix" value="{{ name_suffix }}" class="form-control"/></div>
+              </div>
+            </div>
+
+            <div class="tab-pane" id="tab-merchant">
+              <p class="text-muted">{{ help_merchant }}</p>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_google }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_google_enabled" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_google_enabled" value="1" class="form-check-input"{{ google_enabled == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_meta }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_meta_enabled" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_meta_enabled" value="1" class="form-check-input"{{ meta_enabled == '1' ? ' checked' : '' }}/>
+                </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_size_options }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_size_option_ids[]" multiple size="5" class="form-select">
+                  {% for o in options %}
+                  <option value="{{ o.option_id }}"{{ o.option_id in size_option_ids ? ' selected' : '' }}>{{ o.name }}</option>
+                  {% endfor %}
+                </select><div class="form-text">{{ help_size_options }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_color_options }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_color_option_ids[]" multiple size="5" class="form-select">
+                  {% for o in options %}
+                  <option value="{{ o.option_id }}"{{ o.option_id in color_option_ids ? ' selected' : '' }}>{{ o.name }}</option>
+                  {% endfor %}
+                </select><div class="form-text">{{ help_variants }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_handling_time }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_handling_time" value="{{ handling_time }}" placeholder="1-3" class="form-control" style="max-width:160px"/><div class="form-text">{{ help_handling_time }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_handling_attribute }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_handling_attribute_id" class="form-select" style="max-width:420px">
+                  <option value="0">{{ text_none_selected }}</option>
+                  {% for a in attributes %}
+                  <option value="{{ a.attribute_id }}"{{ a.attribute_id == handling_attribute_id ? ' selected' : '' }}>{{ a.name }}</option>
+                  {% endfor %}
+                </select><div class="form-text">{{ help_handling_attribute }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_merchant_brand }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_merchant_brand" value="{{ merchant_brand }}" class="form-control" style="max-width:320px"/><div class="form-text">{{ help_merchant_brand }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_google_category }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_google_category" value="{{ google_category }}" class="form-control" style="max-width:320px"/><div class="form-text">{{ help_google_category }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_merchant_mpn }}</label>
+                <div class="col-sm-9"><select name="module_cc_feeds_merchant_mpn" class="form-select" style="max-width:200px">
+                  <option value="sku"{{ merchant_mpn == 'sku' ? ' selected' : '' }}>SKU</option>
+                  <option value="model"{{ merchant_mpn == 'model' ? ' selected' : '' }}>Model</option>
+                  <option value="none"{{ merchant_mpn == 'none' ? ' selected' : '' }}>{{ text_none_selected }}</option>
+                </select></div>
               </div>
             </div>
 

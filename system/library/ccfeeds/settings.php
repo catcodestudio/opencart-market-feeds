@@ -41,11 +41,46 @@ class Settings {
 			'cache_enabled'        => '0',
 			'rozetka_enabled'      => '1',
 			'prom_enabled'         => '1',
+
+			// Google Merchant Center / Meta catalogue (RSS 2.0 + g: namespace).
+			// Off by default: an update must not start publishing a new feed.
+			'google_enabled'       => '0',
+			'meta_enabled'         => '0',
+			'size_option_ids'      => [],   // OpenCart options whose values are sizes
+			'color_option_ids'     => [],   // OpenCart options whose values are colours
+			'merchant_brand'       => '',   // brand when the product has no manufacturer
+			'google_category'      => '',   // google_product_category, id or path
+			'merchant_mpn'         => 'sku', // sku | model | none
+
+			// Real dispatch time, e.g. "2-6" working days. '' => not published.
+			'handling_time'        => '',
+			'handling_attribute_id' => '0', // attribute that overrides it per product
 		];
 	}
 
 	/** Keys stored as serialized arrays. */
-	public const ARRAY_KEYS = ['category_ids', 'manufacturer_ids'];
+	public const ARRAY_KEYS = ['category_ids', 'manufacturer_ids', 'size_option_ids', 'color_option_ids'];
+
+	/**
+	 * Parse a dispatch time written by a person: "3", "2-6", "2–6 днів", "1 - 3".
+	 *
+	 * @return array{0:int,1:int}|null [min, max] working days, or null when the
+	 *                                 text holds no number at all.
+	 */
+	public static function parseHandling(string $text): ?array {
+		if (!preg_match('/(\d{1,3})(?:\s*(?:-|–|—|\.\.)\s*(\d{1,3}))?/u', $text, $m)) {
+			return null;
+		}
+
+		$min = (int)$m[1];
+		$max = isset($m[2]) && $m[2] !== '' ? (int)$m[2] : $min;
+
+		if ($max < $min) {
+			[$min, $max] = [$max, $min];
+		}
+
+		return [$min, $max];
+	}
 
 	public function all(): array {
 		if ($this->cache !== null) {

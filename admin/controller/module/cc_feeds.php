@@ -55,6 +55,26 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		}
 		$data['url_rozetka'] = $store . '/index.php?route=extension/cc_feeds/feed.rozetka&token=' . $data['feed_token'];
 		$data['url_prom']    = $store . '/index.php?route=extension/cc_feeds/feed.prom&token=' . $data['feed_token'];
+		$data['url_google']  = $store . '/index.php?route=extension/cc_feeds/feed.google&token=' . $data['feed_token'];
+		$data['url_meta']    = $store . '/index.php?route=extension/cc_feeds/feed.meta&token=' . $data['feed_token'];
+
+		// Options that can act as variant dimensions (a list to pick from) and
+		// attributes that may hold a per-product dispatch time.
+		$this->load->model('catalog/option');
+		$this->load->model('catalog/attribute');
+		$data['options'] = [];
+		foreach ($this->model_catalog_option->getOptions([]) as $option) {
+			if (in_array((string)$option['type'], ['select', 'radio', 'checkbox', 'image'], true)) {
+				$data['options'][] = ['option_id' => (int)$option['option_id'], 'name' => html_entity_decode((string)$option['name'], ENT_QUOTES, 'UTF-8')];
+			}
+		}
+		$data['attributes'] = [];
+		foreach ($this->model_catalog_attribute->getAttributes([]) as $attribute) {
+			$data['attributes'][] = [
+				'attribute_id' => (int)$attribute['attribute_id'],
+				'name'         => html_entity_decode((string)$attribute['name'] . (isset($attribute['attribute_group']) ? ' (' . $attribute['attribute_group'] . ')' : ''), ENT_QUOTES, 'UTF-8'),
+			];
+		}
 
 		// Category / manufacturer options for filters.
 		$this->load->model('catalog/category');
@@ -173,7 +193,14 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 			(int)$this->config->get('config_customer_group_id')
 		);
 
-		$this->jsonResponse(['success' => $this->language->get('text_rebuilt'), 'counts' => $done]);
+		$message = $this->language->get('text_rebuilt');
+
+		// Google/Meta files need storefront SEO links, so admin only clears them.
+		if ($settings->get('google_enabled', '0') === '1' || $settings->get('meta_enabled', '0') === '1') {
+			$message .= ' ' . $this->language->get('text_rebuilt_merchant');
+		}
+
+		$this->jsonResponse(['success' => $message, 'counts' => $done]);
 	}
 
 	private function imageBase(): string {

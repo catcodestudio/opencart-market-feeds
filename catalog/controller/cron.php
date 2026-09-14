@@ -20,11 +20,15 @@ class Cron extends \Opencart\System\Engine\Controller {
 			return;
 		}
 
+		$imageBase = rtrim((string)$this->config->get('config_url'), '/') . '/image';
+		$language  = (new Generator($this->db, $settings, $settings->languageId(), $imageBase))->languageCode();
+
 		Generator::rebuildCache(
 			$this->db,
 			$settings,
-			rtrim((string)$this->config->get('config_url'), '/') . '/image',
-			(int)$this->config->get('config_customer_group_id')
+			$imageBase,
+			(int)$this->config->get('config_customer_group_id'),
+			Generator::productLinkBuilder($this->url, $language)
 		);
 	}
 }
