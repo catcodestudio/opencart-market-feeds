@@ -55,7 +55,178 @@ class Settings {
 			// Real dispatch time, e.g. "2-6" working days. '' => not published.
 			'handling_time'        => '',
 			'handling_attribute_id' => '0', // attribute that overrides it per product
+
+			// Google product data specification of 14.04.2026. All empty by
+			// default, so an update publishes exactly the feed the shop had
+			// until the merchant fills these in.
+			'handling_business_days'   => '', // M-F / M-S / M;W;F — days orders are packed
+			'handling_cutoff_time'     => '', // "1500" — daily order deadline
+			'handling_cutoff_timezone' => '', // IANA name; '' => the shop's own
+			'min_order_value'          => '', // minimum_order_value, feed currency
+			'merchant_country'         => '', // ISO 3166-1 alpha-2; '' => shop country
 		];
+	}
+
+	/** Google's business-day letters, in week order. */
+	public const DAY_LETTERS = ['M', 'T', 'W', 'R', 'F', 'S', 'U'];
+
+	/**
+	 * Every spelling Google accepts, plus the short Ukrainian/Russian names a
+	 * shop owner types without thinking.
+	 *
+	 * ⚠ The single letters are Google's, not English: T is Tuesday, R is
+	 * Thursday, S is Saturday, U is Sunday.
+	 */
+	private const DAY_ALIASES = [
+		'm' => 'M', 'mon' => 'M', 'monday' => 'M', 'пн' => 'M',
+		't' => 'T', 'tu' => 'T', 'tue' => 'T', 'tues' => 'T', 'tuesday' => 'T', 'вт' => 'T',
+		'w' => 'W', 'we' => 'W', 'wed' => 'W', 'wednesday' => 'W', 'ср' => 'W',
+		'r' => 'R', 'th' => 'R', 'thu' => 'R', 'thur' => 'R', 'thurs' => 'R', 'thursday' => 'R', 'чт' => 'R',
+		'f' => 'F', 'fr' => 'F', 'fri' => 'F', 'friday' => 'F', 'пт' => 'F',
+		's' => 'S', 'sa' => 'S', 'sat' => 'S', 'saturday' => 'S', 'сб' => 'S',
+		'u' => 'U', 'su' => 'U', 'sun' => 'U', 'sunday' => 'U', 'нд' => 'U',
+	];
+
+	/**
+	 * Cutoff time as the four digits Google wants: "1530", "0900", "2359".
+	 *
+	 * Accepts what a person types — "15:30", "15.30", "9:00", "1530". Anything
+	 * that is not a real time of day comes back empty, and empty means "do not
+	 * publish the attribute" rather than "midnight": a wrong cutoff is worse
+	 * than none, because Google then promises a delivery date the shop misses.
+	 */
+	public static function normalizeCutoff(string $text): string {
+		$digits = (string)preg_replace('/\D+/', '', $text);
+
+		if (strlen($digits) === 3) {
+			$digits = '0' . $digits;
+		}
+		if (strlen($digits) !== 4) {
+			return '';
+		}
+
+		$hours   = (int)substr($digits, 0, 2);
+		$minutes = (int)substr($digits, 2, 2);
+
+		return ($hours <= 23 && $minutes <= 59) ? $digits : '';
+	}
+
+	/**
+	 * Fulfilment days in Google's own notation: "M-F", "M-S", "M;W;R;F".
+	 *
+	 * Understands ranges ("Mon-Fri", "Пн-Сб"), lists ("M;W;F", "пн, ср"), the
+	 * packed form ("MWRFS") and the full English names. An unknown word makes
+	 * the whole value invalid: half a week is a worse promise than the Mon–Fri
+	 * Google assumes on its own.
+	 */
+	public static function normalizeBusinessDays(string $text): string {
+		$text = trim((string)preg_replace('/[–—]/u', '-', $text));
+		if ($text === '') {
+			return '';
+		}
+		// A leading "UA:" is dropped: the setting is shop-wide, and a bare value
+		// already applies to every country.
+		$text = (string)preg_replace('/^[A-Za-z]{2}\s*:\s*/', '', $text);
+
+		$days = [];
+
+		foreach (preg_split('/[;,\s]+/u', $text) ?: [] as $chunk) {
+			$chunk = trim((string)$chunk);
+			if ($chunk === '') {
+				continue;
+			}
+
+			if (strpos($chunk, '-') !== false) {
+				$edges = explode('-', $chunk);
+				if (count($edges) !== 2) {
+					return '';
+				}
+				$from = self::dayLetter($edges[0]);
+				$to   = self::dayLetter($edges[1]);
+				if ($from === '' || $to === '') {
+					return '';
+				}
+				$start = (int)array_search($from, self::DAY_LETTERS, true);
+				$end   = (int)array_search($to, self::DAY_LETTERS, true);
+				if ($end < $start) {
+					return '';
+				}
+				for ($i = $start; $i <= $end; $i++) {
+					$days[] = self::DAY_LETTERS[$i];
+				}
+				continue;
+			}
+
+			$letter = self::dayLetter($chunk);
+			if ($letter !== '') {
+				$days[] = $letter;
+				continue;
+			}
+
+			$packed = strtoupper($chunk);
+			if (!preg_match('/^[MTWRFSU]+$/', $packed)) {
+				return '';
+			}
+			foreach (str_split($packed) as $one) {
+				$days[] = $one;
+			}
+		}
+
+		$days = array_values(array_intersect(self::DAY_LETTERS, $days));
+		if (!$days) {
+			return '';
+		}
+
+		// Google asks for a range whenever the days run without a gap.
+		$first = (int)array_search($days[0], self::DAY_LETTERS, true);
+		$last  = (int)array_search($days[count($days) - 1], self::DAY_LETTERS, true);
+		if (count($days) > 2 && count($days) === ($last - $first + 1)) {
+			return $days[0] . '-' . $days[count($days) - 1];
+		}
+
+		return implode(';', $days);
+	}
+
+	/** One day name/letter as Google's letter, or '' when it is not a day. */
+	private static function dayLetter(string $chunk): string {
+		$key = rtrim(trim($chunk), '.');
+		$key = function_exists('mb_strtolower') ? mb_strtolower($key, 'UTF-8') : strtolower($key);
+
+		return self::DAY_ALIASES[$key] ?? '';
+	}
+
+	/** True for a real zone name ("Europe/Kyiv", "UTC"), false for an offset. */
+	public static function isIanaZone(string $zone): bool {
+		return $zone !== '' && in_array($zone, timezone_identifiers_list(), true);
+	}
+
+	/**
+	 * IANA timezone for the cutoff.
+	 *
+	 * ⚠ The PHP server zone is deliberately NOT used as a fallback. When
+	 * `date.timezone` is missing from php.ini — the usual state on shared
+	 * hosting — `date_default_timezone_get()` answers "UTC" although nobody
+	 * ever chose it, and publishing that moves a Kyiv shop's cutoff three hours
+	 * earlier. Sending nothing is safe: Google then reads the cutoff in the
+	 * buyer's own timezone.
+	 */
+	public function cutoffTimezone(): string {
+		$explicit = trim((string)$this->get('handling_cutoff_timezone', ''));
+		if ($explicit !== '') {
+			return self::isIanaZone($explicit) ? $explicit : '';
+		}
+
+		$shop = trim((string)$this->getConfig('config_timezone'));
+
+		return self::isIanaZone($shop) ? $shop : '';
+	}
+
+	/** Minimum order value in feed currency; 0 = the shop has none. */
+	public function minOrderValue(): float {
+		$raw = str_replace(',', '.', trim((string)$this->get('min_order_value', '')));
+		$sum = is_numeric($raw) ? (float)$raw : 0.0;
+
+		return $sum > 0 ? $sum : 0.0;
 	}
 
 	/** Keys stored as serialized arrays. */

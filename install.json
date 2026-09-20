@@ -1,7 +1,7 @@
 {
   "name": "Market Feeds",
   "description": "Product export feeds for OpenCart 4.x: Rozetka XML, Prom.ua YML, Google Merchant Center and Meta catalogue (RSS with g: namespace) — variants from size/colour options grouped by item_group_id, real dispatch time (min/max handling time), token-protected storefront feed URLs, streaming XMLWriter output, category/manufacturer filtering, special price, availability + stock mapping, attributes as <param>, optional feed file cache via cron.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "author": "CatCode",
   "link": "https://catcode.com.ua/modules/opencart-market-feeds/"
 }

@@ -16,6 +16,13 @@ Product export feeds for OpenCart 4.x — **Rozetka XML**, **Prom.ua YML**, **Go
 - Product attributes exported as `<param>`; configurable image limit and description mode.
 - Optional feed file cache rebuilt by cron (`extension/cc_feeds/cron.rebuild`). Cached files are named with a digest of the feed token, so a direct GET of the cache path is as secret as the feed URL itself — `DIR_STORAGE` is not always outside the web root, and nginx serves static files without consulting `.htaccess`. Rotating the token or uninstalling the module deletes them.
 
+## 1.3.0
+- **Google product data specification of 14 April 2026.** The Google feed now carries the daily order deadline `g:handling_cutoff_time` (with `g:country` and the IANA `g:cutoff_timezone`), the fulfilment days `g:shipping_handling_business_days` and the minimum order value `g:minimum_order_value`. Without a cutoff time Merchant Center counts the handling days from midnight, so an order placed at 18:00 was promised the same delivery date as a morning one and the account collected "delivery date mismatch" warnings; without the fulfilment days Google assumes Mon–Fri and every Saturday dispatch looks late.
+- Fulfilment days are typed the way a person writes them — `Пн-Сб`, `Mon-Fri`, `M;W;F`, `MWRFS` — and are stored in Google's own notation (`T` is Tuesday, `R` is Thursday, `S` is Saturday, `U` is Sunday).
+- Minimum order value goes out only for products that cost no more than it, and always with the country sub-attribute: Google rejects the row without a country and rejects the attribute on a product already above the minimum.
+- The cutoff timezone falls back to the server's, but only when that is a real IANA name — a host left on a bare offset sends no timezone instead of a value Google would reject.
+- All five fields are empty after the update, so a feed already accepted by Merchant Center does not change until they are filled in.
+
 ## 1.2.0
 - **Google Merchant Center and Meta feeds.** RSS 2.0 with `g:` attributes: id, title, description (plain text), link (storefront SEO URL), image_link + additional_image_link, availability, price / sale_price, condition, brand, gtin (valid EAN only), mpn, product_type (category path), optional google_product_category. Off by default.
 - **Variants.** Options marked as "size" or "colour" become separate items: `id = product-optionvalue`, shared `item_group_id = product_id`, `g:size` / `g:color`, price = product (or special) price + option price, availability follows the option value stock when it subtracts stock. Two dimensions give their combinations (max 100 per product).

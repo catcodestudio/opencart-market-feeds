@@ -86,3 +86,15 @@ $_['help_google_category']     = 'Optional. ID or path from the Google taxonomy,
 
 // Error
 $_['error_permission']       = 'You do not have permission to manage this module!';
+
+// Google product data specification, 14 April 2026.
+$_['entry_business_days']      = 'Fulfilment days';
+$_['entry_cutoff_time']        = 'Order cutoff time';
+$_['entry_cutoff_timezone']    = 'Cutoff timezone';
+$_['entry_min_order_value']    = 'Minimum order value';
+$_['entry_merchant_country']   = 'Shipping country';
+$_['help_business_days']       = 'Which days of the week the warehouse packs orders: M-F, M-S, M;W;F (Mon-Sat and MWRFS work too). Sent as g:shipping_handling_business_days. Empty — Google assumes Mon-Fri, so every Saturday dispatch looks late to it.';
+$_['help_cutoff_time']         = 'Until what time an order still ships today: 15:00, 1500, 18:30. Sent as g:handling_cutoff_time. Empty — Google counts the handling days from midnight, so an order placed at 18:00 is promised the same date as a morning one.';
+$_['help_cutoff_timezone']     = 'IANA name, e.g. Europe/Kyiv. Empty — the shop timezone from the OpenCart settings is used; if that is not an IANA name, no timezone is sent and Google reads the cutoff in the buyer timezone. The server timezone is deliberately not used: on most hosts it is a UTC nobody chose.';
+$_['help_min_order_value']     = 'How much a customer must spend before the shop ships an order. Sent as g:minimum_order_value and shown in the ad — but only for products cheaper than that amount (Google requirement). Empty — not sent.';
+$_['help_merchant_country']    = 'ISO 3166-1 code, e.g. UA. Empty — the country from the shop address. Required for the minimum order value: without a country Google rejects the attribute.';

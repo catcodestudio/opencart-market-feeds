@@ -253,6 +253,26 @@
                 </select><div class="form-text">{{ help_handling_attribute }}</div></div>
               </div>
               <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_business_days }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_handling_business_days" value="{{ handling_business_days }}" placeholder="M-F" class="form-control" style="max-width:200px"/><div class="form-text">{{ help_business_days }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_cutoff_time }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_handling_cutoff_time" value="{{ handling_cutoff_time }}" placeholder="15:00" class="form-control" style="max-width:160px"/><div class="form-text">{{ help_cutoff_time }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_cutoff_timezone }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_handling_cutoff_timezone" value="{{ handling_cutoff_timezone }}" placeholder="Europe/Kyiv" class="form-control" style="max-width:320px"/><div class="form-text">{{ help_cutoff_timezone }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_min_order_value }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_min_order_value" value="{{ min_order_value }}" class="form-control" style="max-width:160px"/><div class="form-text">{{ help_min_order_value }}</div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_merchant_country }}</label>
+                <div class="col-sm-9"><input type="text" name="module_cc_feeds_merchant_country" value="{{ merchant_country }}" placeholder="UA" class="form-control" style="max-width:120px"/><div class="form-text">{{ help_merchant_country }}</div></div>
+              </div>
+              <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_merchant_brand }}</label>
                 <div class="col-sm-9"><input type="text" name="module_cc_feeds_merchant_brand" value="{{ merchant_brand }}" class="form-control" style="max-width:320px"/><div class="form-text">{{ help_merchant_brand }}</div></div>
               </div>

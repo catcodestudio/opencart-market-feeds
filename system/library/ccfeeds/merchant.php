@@ -23,6 +23,14 @@ trait MerchantFeed {
 	/** @var array<int,string> category_id => "Parent > Child" */
 	private array $categoryPathCache = [];
 
+	/**
+	 * Shop-wide values of the attributes Google added on 14.04.2026, resolved
+	 * once per run.
+	 *
+	 * @var array{days:string,cutoff:string,timezone:string,country:string,mov:float}|null
+	 */
+	private ?array $shipping2026 = null;
+
 	private ?string $languageCodeCache = null;
 
 	private function streamMerchant(string $dialect, string $target): int {
@@ -207,10 +215,12 @@ trait MerchantFeed {
 		$money = static fn(float $v): string => number_format($v, $decimals, '.', '') . ' ' . $currency;
 
 		if ($it['sale'] !== null && $it['price'] > $it['sale']) {
+			$advertised = (float)$it['price'];
 			$w->writeElement('g:price', $money($it['price']));
 			$w->writeElement('g:sale_price', $money($it['sale']));
 		} else {
-			$w->writeElement('g:price', $money($it['sale'] ?? $it['price']));
+			$advertised = (float)($it['sale'] ?? $it['price']);
+			$w->writeElement('g:price', $money($advertised));
 		}
 
 		$w->writeElement('g:condition', 'new');
@@ -240,10 +250,13 @@ trait MerchantFeed {
 			$w->writeElement('g:color', $this->merchantText($it['color'], 100));
 		}
 
-		// Handling time is a Google attribute; Meta has no such field.
-		if (!$isMeta && $it['handling'] !== null) {
-			$w->writeElement('g:min_handling_time', (string)$it['handling'][0]);
-			$w->writeElement('g:max_handling_time', (string)$it['handling'][1]);
+		// Shipping/handling attributes are Google's; Meta has no such fields.
+		if (!$isMeta) {
+			if ($it['handling'] !== null) {
+				$w->writeElement('g:min_handling_time', (string)$it['handling'][0]);
+				$w->writeElement('g:max_handling_time', (string)$it['handling'][1]);
+			}
+			$this->writeShipping2026($w, $advertised, $currency, $decimals);
 		}
 
 		$w->endElement(); // item
@@ -332,6 +345,84 @@ trait MerchantFeed {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Attributes Google added to the product data specification on 14.04.2026.
+	 *
+	 * - g:shipping_handling_business_days — which days the shop actually packs
+	 *   orders. Absent, Google assumes Mon–Fri and misdates every Saturday
+	 *   dispatch.
+	 * - g:handling_cutoff_time — the daily deadline. Absent, the handling days
+	 *   are counted from midnight, so an order placed at 18:00 gets the same
+	 *   promised date as one placed at 09:00, and the account collects
+	 *   "delivery date mismatch" warnings.
+	 * - g:minimum_order_value — published only for products that cost no more
+	 *   than the minimum, because Google accepts the attribute only when "your
+	 *   product's price is equal to or lesser than the minimum order value".
+	 *
+	 * $price is the value written to g:price — the one Google reads as "the
+	 * product's price", so on a discounted item it is the regular price.
+	 *
+	 * @link https://support.google.com/merchants/answer/16989427
+	 */
+	private function writeShipping2026(\XMLWriter $w, float $price, string $currency, int $decimals): void {
+		if ($this->shipping2026 === null) {
+			$this->shipping2026 = [
+				'days'     => Settings::normalizeBusinessDays((string)$this->settings->get('handling_business_days', '')),
+				'cutoff'   => Settings::normalizeCutoff((string)$this->settings->get('handling_cutoff_time', '')),
+				'timezone' => $this->settings->cutoffTimezone(),
+				'country'  => $this->merchantCountry(),
+				'mov'      => $this->settings->minOrderValue(),
+			];
+		}
+
+		$cfg = $this->shipping2026;
+
+		if ($cfg['days'] !== '') {
+			$w->writeElement('g:shipping_handling_business_days', $cfg['days']);
+		}
+
+		if ($cfg['cutoff'] !== '') {
+			$w->startElement('g:handling_cutoff_time');
+			if ($cfg['country'] !== '') {
+				$w->writeElement('g:country', $cfg['country']);
+			}
+			$w->writeElement('g:cutoff_time', $cfg['cutoff']);
+			if ($cfg['timezone'] !== '') {
+				$w->writeElement('g:cutoff_timezone', $cfg['timezone']);
+			}
+			$w->endElement();
+		}
+
+		// country is a required sub-attribute — without it Google drops the row.
+		if ($cfg['mov'] > 0 && $cfg['country'] !== '' && $price <= $cfg['mov']) {
+			$w->startElement('g:minimum_order_value');
+			$w->writeElement('g:country', $cfg['country']);
+			$w->writeElement('g:price', number_format($cfg['mov'], $decimals, '.', '') . ' ' . $currency);
+			$w->endElement();
+		}
+	}
+
+	/**
+	 * ISO 3166-1 alpha-2 country the shipping attributes apply to: the one named
+	 * in the settings, otherwise the shop's own address country.
+	 */
+	private function merchantCountry(): string {
+		$explicit = strtoupper(trim((string)$this->settings->get('merchant_country', '')));
+		if (preg_match('/^[A-Z]{2}$/', $explicit)) {
+			return $explicit;
+		}
+
+		$countryId = (int)$this->cfg('config_country_id');
+		if ($countryId <= 0) {
+			return '';
+		}
+
+		$row  = $this->db->query("SELECT iso_code_2 FROM `" . DB_PREFIX . "country` WHERE country_id = " . $countryId)->row;
+		$code = strtoupper(trim((string)($row['iso_code_2'] ?? '')));
+
+		return preg_match('/^[A-Z]{2}$/', $code) ? $code : '';
 	}
 
 	/** @param int[] $categoryIds */

@@ -137,6 +137,22 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 			}
 		}
 
+		// Google's shipping attributes are normalised here, not at generation
+		// time: the merchant reloads the page and sees exactly what will go into
+		// the feed, and a field that comes back empty reads as "Google does not
+		// understand this" instead of quietly poisoning the XML.
+		$data['module_cc_feeds_handling_business_days'] = Settings::normalizeBusinessDays((string)$data['module_cc_feeds_handling_business_days']);
+		$data['module_cc_feeds_handling_cutoff_time']   = Settings::normalizeCutoff((string)$data['module_cc_feeds_handling_cutoff_time']);
+
+		$zone = trim((string)$data['module_cc_feeds_handling_cutoff_timezone']);
+		$data['module_cc_feeds_handling_cutoff_timezone'] = Settings::isIanaZone($zone) ? $zone : '';
+
+		$country = strtoupper(trim((string)$data['module_cc_feeds_merchant_country']));
+		$data['module_cc_feeds_merchant_country'] = preg_match('/^[A-Z]{2}$/', $country) ? $country : '';
+
+		$mov = str_replace(',', '.', trim((string)$data['module_cc_feeds_min_order_value']));
+		$data['module_cc_feeds_min_order_value'] = (is_numeric($mov) && (float)$mov > 0) ? (string)(float)$mov : '';
+
 		// Never blank an existing token by accident.
 		if (empty($data['module_cc_feeds_feed_token'])) {
 			$existing = (string)$this->config->get('module_cc_feeds_feed_token');
