@@ -482,26 +482,33 @@ class AgentFormat {
 
 	/**
 	 * /llms.txt (llmstxt.org): H1 with the shop name, a blockquote summary,
-	 * a few plain lines, then H2 "file lists" of links.
+	 * two plain lines, then H2 "file lists" of links. Same layout as the
+	 * WooCommerce build of Market Feeds.
 	 *
-	 * @param array $shop  name, summary, url, currency, phone, ucp_url
+	 * @param array $shop       name, summary, currency, country, ucp_url, home_url
 	 * @param array $categories array(name, url, count)
-	 * @param array $products   array(name, url, price, in_stock)
+	 * @param array $products   array(name, url, price, in_stock, text)
 	 * @param array $policies   array(title, url)
+	 * @param array $labels     llmsLabels()
 	 */
 	public static function llms($shop, $categories, $products, $policies, $labels) {
-		$md = array();
-		$md[] = '# ' . self::line($shop['name']);
+		$md   = array();
+		$name = self::line($shop['name']);
+		$md[] = '# ' . ($name !== '' ? $name : (string)parse_url((string)$shop['home_url'], PHP_URL_HOST));
 		$md[] = '';
 
-		if ((string)$shop['summary'] !== '') {
-			$md[] = '> ' . self::line($shop['summary']);
-			$md[] = '';
+		$summary = self::line($shop['summary']);
+		$summary = $summary !== '' ? rtrim($summary, '.') . '.' : $labels['shop'];
+		$facts   = array(sprintf($labels['prices'], self::line($shop['currency'])));
+		if ((string)$shop['country'] !== '') {
+			$facts[] = sprintf($labels['country'], self::line($shop['country']));
 		}
+		$md[] = '> ' . $summary . ' ' . implode(', ', $facts) . '.';
+		$md[] = '';
 
-		$md[] = sprintf($labels['intro'], self::line($shop['url']), self::line($shop['currency']));
-		if ((string)$shop['phone'] !== '') {
-			$md[] = sprintf($labels['phone'], self::line($shop['phone']));
+		$md[] = $labels['fresh'];
+		if ((string)$shop['ucp_url'] !== '') {
+			$md[] = sprintf($labels['ucp'], $shop['ucp_url']);
 		}
 		$md[] = '';
 
@@ -509,7 +516,7 @@ class AgentFormat {
 			$md[] = '## ' . $labels['categories'];
 			$md[] = '';
 			foreach ($categories as $category) {
-				$md[] = '- [' . self::link($category['name']) . '](' . $category['url'] . ')' . ($category['count'] > 0 ? ': ' . sprintf($labels['count'], (int)$category['count']) : '');
+				$md[] = self::mdLink($category['name'], $category['url'], $category['count'] > 0 ? self::plural($labels['count'], (int)$category['count']) : '');
 			}
 			$md[] = '';
 		}
@@ -518,7 +525,16 @@ class AgentFormat {
 			$md[] = '## ' . $labels['products'];
 			$md[] = '';
 			foreach ($products as $product) {
-				$md[] = '- [' . self::link($product['name']) . '](' . $product['url'] . '): ' . $product['price'] . ', ' . ($product['in_stock'] ? $labels['in_stock'] : $labels['out_of_stock']);
+				$notes = array();
+				if ((string)$product['price'] !== '') {
+					$notes[] = $product['price'];
+				}
+				$notes[] = $product['in_stock'] ? $labels['in_stock'] : $labels['out_of_stock'];
+				$text = self::line($product['text']);
+				if ($text !== '') {
+					$notes[] = self::cut($text, 160) === $text ? $text : rtrim(self::cut($text, 157)) . '…';
+				}
+				$md[] = self::mdLink($product['name'], $product['url'], implode('; ', $notes));
 			}
 			$md[] = '';
 		}
@@ -527,34 +543,102 @@ class AgentFormat {
 			$md[] = '## ' . $labels['policies'];
 			$md[] = '';
 			foreach ($policies as $policy) {
-				$md[] = '- [' . self::link($policy['title']) . '](' . $policy['url'] . ')';
+				$md[] = self::mdLink($labels[$policy['key']], $policy['url'], '');
 			}
 			$md[] = '';
 		}
 
-		if ((string)$shop['ucp_url'] !== '') {
-			$md[] = '## ' . $labels['machine'];
-			$md[] = '';
-			$md[] = '- [UCP business profile](' . $shop['ucp_url'] . '): ' . $labels['ucp'];
-			$md[] = '';
-		}
+		$md[] = '## Optional';
+		$md[] = '';
+		$md[] = self::mdLink($labels['home'], $shop['home_url'], '');
 
-		return implode("\n", $md);
+		return implode("\n", $md) . "\n";
 	}
 
-	/** Fixed English labels of /llms.txt: agents read them, the catalogue keeps its own language. */
-	public static function llmsLabels() {
+	/** "- [name](url): notes" */
+	private static function mdLink($text, $url, $notes) {
+		return '- [' . self::link($text) . '](' . str_replace(array(' ', ')'), array('%20', '%29'), (string)$url) . ')' . ($notes !== '' ? ': ' . self::line($notes) : '');
+	}
+
+	/** Ukrainian plural forms: array(one, few, many); other languages: array(one, many). */
+	private static function plural($forms, $n) {
+		if (count($forms) === 3) {
+			$mod10  = $n % 10;
+			$mod100 = $n % 100;
+			$form   = ($mod10 === 1 && $mod100 !== 11) ? 0 : (($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 10 || $mod100 >= 20)) ? 1 : 2);
+		} else {
+			$form = $n === 1 ? 0 : 1;
+		}
+
+		return sprintf($forms[$form], $n);
+	}
+
+	/**
+	 * Price for /llms.txt: "1990 UAH" or "1200–1300 UAH" across the
+	 * variants, as the shop page shows it; '' when there is none.
+	 */
+	public static function priceText($record, $decimals, $currency) {
+		$amounts = array();
+		foreach (self::items($record) as $item) {
+			$current = $item['special'] !== null ? (float)$item['special'] : (float)$item['regular'];
+			if ($current > 0) {
+				$amounts[] = $current;
+			}
+		}
+		if (!$amounts) {
+			return '';
+		}
+
+		$fmt = function ($value) use ($decimals) {
+			return abs($value - round($value)) < 0.00001 ? number_format($value, 0, '.', '') : number_format($value, (int)$decimals, '.', '');
+		};
+		$min = min($amounts);
+		$max = max($amounts);
+
+		return ($min === $max ? $fmt($min) : $fmt($min) . '–' . $fmt($max)) . ' ' . strtoupper((string)$currency);
+	}
+
+	/**
+	 * Labels of /llms.txt in the feed language: Ukrainian for uk-*, English
+	 * otherwise (the catalogue text itself always keeps its own language).
+	 */
+	public static function llmsLabels($languageCode) {
+		if (strpos(strtolower((string)$languageCode), 'uk') === 0) {
+			return array(
+				'shop'         => 'Інтернет-магазин.',
+				'prices'       => 'Ціни в %s',
+				'country'      => 'магазин у країні %s',
+				'fresh'        => 'Ціни й наявність змінюються щодня: актуальні — на сторінці товару. Оформлення замовлення — на сайті.',
+				'ucp'          => 'Каталог для AI-агентів (Universal Commerce Protocol, пошук і перегляд товарів): %s',
+				'categories'   => 'Категорії',
+				'count'        => array('%d товар', '%d товари', '%d товарів'),
+				'products'     => 'Товари',
+				'in_stock'     => 'в наявності',
+				'out_of_stock' => 'немає в наявності',
+				'policies'     => 'Умови',
+				'privacy_url'  => 'Політика конфіденційності',
+				'terms_url'    => 'Умови використання',
+				'return_url'   => 'Повернення та обмін',
+				'home'         => 'Головна',
+			);
+		}
+
 		return array(
-			'intro'        => 'Online store: %s. Prices are in %s and match the product pages.',
-			'phone'        => 'Phone: %s.',
+			'shop'         => 'Online store.',
+			'prices'       => 'Prices in %s',
+			'country'      => 'store in country %s',
+			'fresh'        => 'Prices and stock change daily: the product page is authoritative. Orders are placed on the website.',
+			'ucp'          => 'Catalogue for AI agents (Universal Commerce Protocol, product search and lookup): %s',
 			'categories'   => 'Categories',
-			'count'        => '%d products',
+			'count'        => array('%d product', '%d products'),
 			'products'     => 'Products',
 			'in_stock'     => 'in stock',
 			'out_of_stock' => 'out of stock',
 			'policies'     => 'Policies',
-			'machine'      => 'Machine-readable',
-			'ucp'          => 'Universal Commerce Protocol catalog search and lookup',
+			'privacy_url'  => 'Privacy policy',
+			'terms_url'    => 'Terms of use',
+			'return_url'   => 'Returns and exchanges',
+			'home'         => 'Home',
 		);
 	}
 

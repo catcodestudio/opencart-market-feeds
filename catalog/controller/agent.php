@@ -180,16 +180,17 @@ class Agent extends \Opencart\System\Engine\Controller {
 				$products[] = [
 					'name'     => AgentFormat::text($record['name'], 200),
 					'url'      => $record['url'],
-					'price'    => AgentFormat::money($current, $decimals, $currency),
+					'price'    => AgentFormat::priceText($record, $decimals, $currency),
 					'in_stock' => $record['in_stock'],
+					'text'     => AgentFormat::text($record['description'], 400),
 				];
 			}
 		}
 
 		$policies = [];
-		foreach (['return_url' => 'Returns', 'terms_url' => 'Terms and conditions', 'privacy_url' => 'Privacy policy'] as $key => $title) {
+		foreach (['privacy_url', 'terms_url', 'return_url'] as $key) {
 			if ($shop[$key] !== '') {
-				$policies[] = ['title' => $title, 'url' => $shop[$key]];
+				$policies[] = ['key' => $key, 'url' => $shop[$key]];
 			}
 		}
 
@@ -206,15 +207,15 @@ class Agent extends \Opencart\System\Engine\Controller {
 			[
 				'name'     => AgentFormat::text((string)$this->config->get('config_name'), 200),
 				'summary'  => AgentFormat::text($summary, 500),
-				'url'      => $store,
 				'currency' => $currency,
-				'phone'    => AgentFormat::text((string)$this->config->get('config_telephone'), 50),
+				'country'  => $generator->agentCountry(),
 				'ucp_url'  => $ucpUrl,
+				'home_url' => $store,
 			],
 			$categories,
 			$products,
 			$policies,
-			AgentFormat::llmsLabels()
+			AgentFormat::llmsLabels($language)
 		);
 
 		while (ob_get_level() > 0) {

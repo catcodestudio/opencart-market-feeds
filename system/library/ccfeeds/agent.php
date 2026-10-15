@@ -201,14 +201,30 @@ trait AgentFeed {
 			if ($name === '') {
 				continue;
 			}
+			$count = $this->agentCount($this->agentWhere($storeId) . $this->agentInCategoriesSql(array((int)$row['category_id'])));
+			if ($count <= 0) {
+				continue; // an empty category is a dead end for an agent
+			}
 			$out[] = array(
 				'category_id' => (int)$row['category_id'],
 				'name'        => $name,
-				'count'       => $this->agentCount($this->agentWhere($storeId) . $this->agentInCategoriesSql(array((int)$row['category_id']))),
+				'count'       => $count,
 			);
 		}
 
 		return $out;
+	}
+
+	/** Code of the feed language ("uk-ua", "en-gb"). */
+	public function agentLanguageCode() {
+		$row = $this->db->query("SELECT code FROM `" . DB_PREFIX . "language` WHERE language_id = '" . (int)$this->languageId . "'")->row;
+
+		return isset($row['code']) ? (string)$row['code'] : '';
+	}
+
+	/** ISO country of the shop (the Google feed's rule: setting, else store address). */
+	public function agentCountry() {
+		return $this->merchantCountry();
 	}
 
 	/** Decimal places the shop shows for a currency (OpenCart currency table). */
