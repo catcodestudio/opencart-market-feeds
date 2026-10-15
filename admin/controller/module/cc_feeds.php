@@ -4,14 +4,17 @@ namespace Opencart\Admin\Controller\Extension\CcFeeds\Module;
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/settings.php';
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/generator.php';
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/agentadmin.php';
+require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/savedsettings.php';
 
 use Opencart\System\Library\Ccfeeds\Settings;
 use Opencart\System\Library\Ccfeeds\Generator;
 use Opencart\System\Library\Ccfeeds\Ucp;
 use Opencart\System\Library\Ccfeeds\AgentAdmin;
+use Opencart\System\Library\Ccfeeds\SavedSettings;
 
 class CcFeeds extends \Opencart\System\Engine\Controller {
 	private string $route = 'extension/cc_feeds/module/cc_feeds';
+	private string $group = 'module_cc_feeds';
 
 	private function jsonResponse(array $data): void {
 		if (ob_get_level() > 0) {
@@ -48,6 +51,7 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$data['rebuild']     = $this->url->link($this->route . '.rebuild', 'user_token=' . $this->session->data['user_token']);
 		$data['test']        = $this->url->link($this->route . '.test', 'user_token=' . $this->session->data['user_token']);
 		$data['agent_check'] = $this->url->link($this->route . '.agentCheck', 'user_token=' . $this->session->data['user_token']);
+		$data['saved_reset'] = $this->url->link($this->route . '.savedReset', 'user_token=' . $this->session->data['user_token']);
 		$data['back']        = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
 		$data['user_token']  = $this->session->data['user_token'];
 
@@ -75,6 +79,7 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$data['snippet_nginx']  = $snippets['nginx'];
 		$data['informations']   = $this->informationList();
 		$data['openai_stats']   = $this->openaiStats();
+		$data['saved_info']     = $this->savedInfo();
 
 		// Options that can act as variant dimensions (a list to pick from) and
 		// attributes that may hold a per-product dispatch time.
@@ -180,13 +185,59 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		}
 
 		$this->load->model('setting/setting');
-		$this->model_setting_setting->editSetting('module_cc_feeds', $data);
+		$this->model_setting_setting->editSetting($this->group, $data);
+
+		// The copy that survives uninstall + install (the only way to update
+		// through the OpenCart 4 installer) — token and feed URLs included.
+		SavedSettings::capture($this->db, $this->group);
 
 		// An update through the Installer does not run install(): the events
 		// that map /llms.txt and /.well-known/ucp are (re)registered on save.
 		$this->ensureEvents();
 
-		$this->jsonResponse(['success' => $this->language->get('text_success')]);
+		$this->jsonResponse(['success' => $this->language->get('text_success'), 'saved_info' => $this->savedInfo()]);
+	}
+
+	/**
+	 * "Reset saved settings": the copy is deleted and the next uninstall keeps
+	 * nothing, so the next install starts clean (new token, new feed URLs).
+	 * The current settings stay as they are; Save starts keeping a copy again.
+	 */
+	public function savedReset(): void {
+		$this->load->language($this->route);
+		if (!$this->user->hasPermission('modify', $this->route)) {
+			$this->jsonResponse(['error' => $this->language->get('error_permission')]);
+			return;
+		}
+		if (($this->request->server['REQUEST_METHOD'] ?? '') !== 'POST') {
+			$this->jsonResponse(['error' => $this->language->get('error_saved_method')]);
+			return;
+		}
+
+		SavedSettings::reset($this->db, $this->group);
+
+		$this->jsonResponse(['success' => $this->language->get('text_saved_reset_done'), 'info' => $this->savedInfo()]);
+	}
+
+	/** One line for the settings screen: what the saved copy holds. */
+	private function savedInfo(): string {
+		$info = SavedSettings::info($this->db, $this->group);
+
+		if ($info['count'] > 0) {
+			return sprintf($this->language->get('text_saved_info'), $info['count'], $info['date']);
+		}
+
+		return $this->language->get($info['reset'] ? 'text_saved_none_reset' : 'text_saved_none');
+	}
+
+	/** Full keys of the setting group, for the copy taken on uninstall. */
+	private function groupKeys(): array {
+		$keys = [];
+		foreach (array_keys(Settings::defaults()) as $key) {
+			$keys[] = $this->group . '_' . $key;
+		}
+
+		return $keys;
 	}
 
 	public function token(): void {
@@ -341,6 +392,10 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 	}
 
 	public function install(): void {
+		// Settings kept by the previous uninstall come back first — the feed
+		// token with them, so the URLs in Rozetka / Prom / Google / Meta stay.
+		SavedSettings::restore($this->db, $this->group);
+
 		Settings::prepareCacheDir();
 		$this->ensureEvents();
 
@@ -362,9 +417,14 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 	 * the feed token with it — so nothing is left that could ever serve or
 	 * clean those files again, while their path stays readable to anyone who
 	 * noted it down. An uninstalled module must not keep handing out the
-	 * catalogue.
+	 * catalogue. The saved copy only holds values: nothing serves a feed from
+	 * it until install() puts it back.
 	 */
 	public function uninstall(): void {
+		// The core has already deleted the setting group; this request's config
+		// still holds it. Kept in a table uninstall never drops, for install().
+		SavedSettings::captureOnUninstall($this->db, $this->group, $this->config, $this->groupKeys());
+
 		$this->load->model('setting/cron');
 		try { $this->model_setting_cron->deleteCronByCode('cc_feeds_rebuild'); } catch (\Throwable $e) {}
 

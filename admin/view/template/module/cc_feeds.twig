@@ -87,6 +87,13 @@
                 </div><div class="form-text">{{ help_token }}</div></div>
               </div>
               <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_saved }}</label>
+                <div class="col-sm-9">
+                  <div id="saved-info" class="form-control-plaintext">{{ saved_info }}</div>
+                  <button type="button" id="btn-saved-reset" class="btn btn-outline-danger btn-sm">{{ button_saved_reset }}</button>
+                </div>
+              </div>
+              <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_currency }}</label>
                 <div class="col-sm-9"><select name="module_cc_feeds_currency" class="form-select" style="max-width:280px">
                   <option value="">{{ text_currency_base|format(base_currency) }}</option>
@@ -411,6 +418,7 @@ document.getElementById('form-feeds').addEventListener('submit', function(e) {
       } else if (json.success) {
         alertBox.innerHTML = '<div class="alert alert-success">' + json.success + '</div>';
       }
+      if (json.saved_info) { document.getElementById('saved-info').textContent = json.saved_info; }
       window.scrollTo(0, 0);
     });
 });
@@ -418,6 +426,20 @@ document.getElementById('form-feeds').addEventListener('submit', function(e) {
 document.getElementById('btn-token').addEventListener('click', function() {
   fetch(ccUrl('{{ gen_token }}')).then(function(r) { return r.json(); }).then(function(json) {
     if (json.token) { document.getElementById('input-token').value = json.token; }
+  });
+});
+
+document.getElementById('btn-saved-reset').addEventListener('click', function() {
+  if (!window.confirm({{ text_saved_confirm|json_encode }})) { return; }
+  const alertBox = document.getElementById('alert-feeds');
+  fetch(ccUrl('{{ saved_reset }}'), { method: 'POST' }).then(function(r) { return r.json(); }).then(function(json) {
+    const note = document.createElement('div');
+    note.className = json.error ? 'alert alert-danger' : 'alert alert-success';
+    note.textContent = json.error || json.success;
+    alertBox.textContent = '';
+    alertBox.appendChild(note);
+    if (json.info) { document.getElementById('saved-info').textContent = json.info; }
+    window.scrollTo(0, 0);
   });
 });
 

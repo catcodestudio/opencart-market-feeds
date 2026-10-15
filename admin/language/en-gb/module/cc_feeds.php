@@ -138,3 +138,13 @@ $_['button_agent_check']       = 'Check';
 $_['error_agent_nothing']      = 'Nothing to check: switch on /llms.txt or UCP and save the settings.';
 $_['text_ai_feed_off']          = 'Off — enable it on the "AI agents" tab.';
 $_['text_ai_privacy_none']       = 'GDPR page from the store settings, if set';
+
+// Saved copy of the settings (survives uninstall + install)
+$_['entry_saved']             = 'Saved copy';
+$_['text_saved_info']         = '%d settings saved on %s, the token included. The copy survives uninstalling the module: after a reinstall the settings and feed URLs are the same.';
+$_['text_saved_none']         = 'No copy yet: it is made when the settings are saved (or when the module is uninstalled).';
+$_['text_saved_none_reset']   = 'The copy was reset. The module will keep nothing when it is uninstalled, and the next install starts from scratch: a new token, new feed URLs. Press Save to keep a copy again.';
+$_['button_saved_reset']      = 'Reset saved settings';
+$_['text_saved_confirm']      = 'Delete the saved copy of the settings? The current settings stay as they are, but after uninstalling and reinstalling the module starts from scratch: a new token, and the feed URLs in Rozetka, Prom, Google and Meta will have to be updated.';
+$_['text_saved_reset_done']   = 'The saved copy of the settings was deleted.';
+$_['error_saved_method']      = 'Wrong request.';
