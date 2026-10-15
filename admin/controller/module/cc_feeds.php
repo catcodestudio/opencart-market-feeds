@@ -3,9 +3,12 @@ namespace Opencart\Admin\Controller\Extension\CcFeeds\Module;
 
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/settings.php';
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/generator.php';
+require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/agentadmin.php';
 
 use Opencart\System\Library\Ccfeeds\Settings;
 use Opencart\System\Library\Ccfeeds\Generator;
+use Opencart\System\Library\Ccfeeds\Ucp;
+use Opencart\System\Library\Ccfeeds\AgentAdmin;
 
 class CcFeeds extends \Opencart\System\Engine\Controller {
 	private string $route = 'extension/cc_feeds/module/cc_feeds';
@@ -44,6 +47,7 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$data['gen_token']   = $this->url->link($this->route . '.token', 'user_token=' . $this->session->data['user_token']);
 		$data['rebuild']     = $this->url->link($this->route . '.rebuild', 'user_token=' . $this->session->data['user_token']);
 		$data['test']        = $this->url->link($this->route . '.test', 'user_token=' . $this->session->data['user_token']);
+		$data['agent_check'] = $this->url->link($this->route . '.agentCheck', 'user_token=' . $this->session->data['user_token']);
 		$data['back']        = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
 		$data['user_token']  = $this->session->data['user_token'];
 
@@ -57,6 +61,20 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$data['url_prom']    = $store . '/index.php?route=extension/cc_feeds/feed.prom&token=' . $data['feed_token'];
 		$data['url_google']  = $store . '/index.php?route=extension/cc_feeds/feed.google&token=' . $data['feed_token'];
 		$data['url_meta']    = $store . '/index.php?route=extension/cc_feeds/feed.meta&token=' . $data['feed_token'];
+		$data['url_openai']  = $store . '/index.php?route=extension/cc_feeds/feed.openai&token=' . $data['feed_token'];
+
+		// AI agents: public paths, rewrite snippets, policy pages, last OpenAI run.
+		$agentStore = $store . '/';
+		$data['url_llms']     = $store . '/llms.txt';
+		$data['url_ucp']      = Ucp::profileUrl($agentStore);
+		$data['url_ucp_rest'] = Ucp::endpoint($agentStore);
+		$data['ucp_https']    = Ucp::origin($agentStore) !== '';
+		$data['ucp_at_root']  = Ucp::atOriginRoot($agentStore);
+		$snippets = AgentAdmin::snippets($agentStore, $this->agentRoutes());
+		$data['snippet_apache'] = $snippets['apache'];
+		$data['snippet_nginx']  = $snippets['nginx'];
+		$data['informations']   = $this->informationList();
+		$data['openai_stats']   = $this->openaiStats();
 
 		// Options that can act as variant dimensions (a list to pick from) and
 		// attributes that may hold a per-product dispatch time.
@@ -153,6 +171,8 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$mov = str_replace(',', '.', trim((string)$data['module_cc_feeds_min_order_value']));
 		$data['module_cc_feeds_min_order_value'] = (is_numeric($mov) && (float)$mov > 0) ? (string)(float)$mov : '';
 
+		AgentAdmin::normalize($data, 'module_cc_feeds_');
+
 		// Never blank an existing token by accident.
 		if (empty($data['module_cc_feeds_feed_token'])) {
 			$existing = (string)$this->config->get('module_cc_feeds_feed_token');
@@ -161,6 +181,10 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 
 		$this->load->model('setting/setting');
 		$this->model_setting_setting->editSetting('module_cc_feeds', $data);
+
+		// An update through the Installer does not run install(): the events
+		// that map /llms.txt and /.well-known/ucp are (re)registered on save.
+		$this->ensureEvents();
 
 		$this->jsonResponse(['success' => $this->language->get('text_success')]);
 	}
@@ -211,8 +235,8 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 
 		$message = $this->language->get('text_rebuilt');
 
-		// Google/Meta files need storefront SEO links, so admin only clears them.
-		if ($settings->get('google_enabled', '0') === '1' || $settings->get('meta_enabled', '0') === '1') {
+		// Google/Meta/OpenAI files need storefront SEO links, so admin only clears them.
+		if ($settings->get('google_enabled', '0') === '1' || $settings->get('meta_enabled', '0') === '1' || $settings->get('openai_enabled', '0') === '1') {
 			$message .= ' ' . $this->language->get('text_rebuilt_merchant');
 		}
 
@@ -229,8 +253,96 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		return $store . '/image';
 	}
 
+	/**
+	 * "Check" button of the AI tab: requests /llms.txt, /.well-known/ucp and
+	 * the UCP search endpoint from the server itself, with the saved settings.
+	 */
+	public function agentCheck(): void {
+		$this->load->language($this->route);
+		if (!$this->user->hasPermission('access', $this->route)) {
+			$this->jsonResponse(['error' => $this->language->get('error_permission')]);
+			return;
+		}
+
+		$settings = new Settings($this->config);
+		$on       = $settings->get('status', '0') === '1';
+		$store    = rtrim((string)$this->config->get('config_url'), '/');
+		if ($store === '') {
+			$store = rtrim((string)(defined('HTTP_CATALOG') ? HTTP_CATALOG : ''), '/');
+		}
+
+		$results = AgentAdmin::check($store . '/', $on && $settings->get('llms_enabled', '0') === '1', $on && $settings->get('ucp_enabled', '0') === '1');
+
+		if (!$results) {
+			$this->jsonResponse(['error' => $this->language->get('error_agent_nothing')]);
+			return;
+		}
+
+		$this->jsonResponse(['results' => $results]);
+	}
+
+	private function agentRoutes(): array {
+		return [
+			'llms' => 'route=extension/cc_feeds/agent.llms',
+			'ucp'  => 'route=extension/cc_feeds/agent.ucp',
+			'rest' => 'route=extension/cc_feeds/agent.rest&op=',
+		];
+	}
+
+	private function informationList(): array {
+		$lid  = (int)$this->config->get('config_language_id');
+		$rows = $this->db->query("SELECT i.`information_id`, id.`title` FROM `" . DB_PREFIX . "information` i
+			LEFT JOIN `" . DB_PREFIX . "information_description` id ON id.`information_id` = i.`information_id` AND id.`language_id` = '" . $lid . "'
+			ORDER BY i.`sort_order` ASC, id.`title` ASC")->rows;
+
+		$out = [];
+		foreach ($rows as $row) {
+			$out[] = ['information_id' => (int)$row['information_id'], 'title' => html_entity_decode((string)$row['title'], ENT_QUOTES, 'UTF-8')];
+		}
+
+		return $out;
+	}
+
+	/** "<date>: 120 rows; skipped: no brand 3" for the OpenAI switch, or ''. */
+	private function openaiStats(): string {
+		$stats = AgentAdmin::stats(Settings::cacheDir());
+		if ($stats === null) {
+			return '';
+		}
+
+		$skipped = [];
+		foreach ((array)$stats['skipped'] as $reason => $count) {
+			$label     = $this->language->get('text_skip_' . $reason);
+			$skipped[] = ($label !== 'text_skip_' . $reason ? $label : $reason) . ': ' . (int)$count;
+		}
+
+		return sprintf($this->language->get('text_openai_stats'), date('Y-m-d H:i', (int)$stats['time']), (int)$stats['rows'], $skipped ? implode(', ', $skipped) : '0');
+	}
+
+	/**
+	 * The `_route_` fallback for the agent paths. OpenCart 4.1 with SEO URLs
+	 * sends an unknown path to error/not_found; 4.0.2 (and 4.1 with SEO URLs
+	 * off) to common/home — both are hooked.
+	 */
+	private function ensureEvents(): void {
+		$this->load->model('setting/event');
+
+		foreach (['cc_feeds_agent_404' => 'catalog/controller/error/not_found/before', 'cc_feeds_agent_home' => 'catalog/controller/common/home/before'] as $code => $trigger) {
+			$this->model_setting_event->deleteEventByCode($code);
+			$this->model_setting_event->addEvent([
+				'code'        => $code,
+				'description' => 'CatCode Market Feeds — /llms.txt, /.well-known/ucp and the UCP catalog without a server rewrite',
+				'trigger'     => $trigger,
+				'action'      => 'extension/cc_feeds/agent.route',
+				'status'      => 1,
+				'sort_order'  => 0,
+			]);
+		}
+	}
+
 	public function install(): void {
 		Settings::prepareCacheDir();
+		$this->ensureEvents();
 
 		$this->load->model('setting/event');
 		$this->load->model('setting/cron');
@@ -256,6 +368,14 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		$this->load->model('setting/cron');
 		try { $this->model_setting_cron->deleteCronByCode('cc_feeds_rebuild'); } catch (\Throwable $e) {}
 
+		$this->load->model('setting/event');
+		$this->model_setting_event->deleteEventByCode('cc_feeds_agent_404');
+		$this->model_setting_event->deleteEventByCode('cc_feeds_agent_home');
+
 		Settings::purgeCache();
+		if (is_file(Settings::cacheDir() . 'openai_stats.json')) {
+			unlink(Settings::cacheDir() . 'openai_stats.json');
+		}
+		Ucp::purge(DIR_CACHE . 'cc_feeds_ucp/');
 	}
 }

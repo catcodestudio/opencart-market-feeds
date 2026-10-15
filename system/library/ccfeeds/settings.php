@@ -64,6 +64,20 @@ class Settings {
 			'handling_cutoff_timezone' => '', // IANA name; '' => the shop's own
 			'min_order_value'          => '', // minimum_order_value, feed currency
 			'merchant_country'         => '', // ISO 3166-1 alpha-2; '' => shop country
+
+			// AI agents (1.4.0). Everything off/empty after the update, so an
+			// existing shop publishes nothing new until the owner switches it on.
+			'openai_enabled'           => '0',  // OpenAI Product Feed (jsonl.gz)
+			'ai_seller_name'           => '',   // seller_name; '' => store name
+			'ai_accepts_returns'       => '',   // '' (unspecified) | yes | no
+			'ai_return_days'           => '',   // return window, days
+			'ai_return_policy_url'     => '',   // '' => the store's Return Terms page
+			'ai_privacy_info_id'       => '0',  // information page; 0 => the GDPR page, if set
+			'ai_terms_info_id'         => '0',  // information page; 0 => the Checkout Terms page
+			'llms_enabled'             => '0',  // /llms.txt
+			'llms_products'            => '50', // how many products /llms.txt lists
+			'llms_summary'             => '',   // blockquote; '' => store meta description
+			'ucp_enabled'              => '0',  // /.well-known/ucp + UCP catalog REST
 		];
 	}
 
@@ -323,7 +337,7 @@ class Settings {
 		$dialect = preg_replace('/[^a-z]/', '', $dialect);
 		$digest  = substr(sha1('cc_feeds|' . $secret . '|' . $dialect), 0, 16);
 
-		return self::cacheDir() . 'feed_' . $dialect . '_' . $digest . '.xml';
+		return self::cacheDir() . 'feed_' . $dialect . '_' . $digest . ($dialect === 'openai' ? '.jsonl.gz' : '.xml');
 	}
 
 	/**
@@ -351,14 +365,10 @@ class Settings {
 
 	/** Drop every cached feed, whatever token it was written under. */
 	public static function purgeCache(array $keep = []): void {
-		$files = glob(self::cacheDir() . 'feed_*.xml');
-
-		if (!is_array($files)) {
-			return;
-		}
+		$files = array_merge((array)glob(self::cacheDir() . 'feed_*.xml'), (array)glob(self::cacheDir() . 'feed_*.jsonl.gz'));
 
 		foreach ($files as $file) {
-			if (!in_array(basename($file), $keep, true)) {
+			if (is_string($file) && !in_array(basename($file), $keep, true)) {
 				@unlink($file);
 			}
 		}

@@ -3,9 +3,11 @@ namespace Opencart\Catalog\Controller\Extension\CcFeeds;
 
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/settings.php';
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/generator.php';
+require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/shopinfo.php';
 
 use Opencart\System\Library\Ccfeeds\Settings;
 use Opencart\System\Library\Ccfeeds\Generator;
+use Opencart\System\Library\Ccfeeds\ShopInfo;
 
 /**
  * Cron entrypoint that rebuilds cached feed files under
@@ -28,7 +30,8 @@ class Cron extends \Opencart\System\Engine\Controller {
 			$settings,
 			$imageBase,
 			(int)$this->config->get('config_customer_group_id'),
-			Generator::productLinkBuilder($this->url, $language)
+			Generator::productLinkBuilder($this->url, $language),
+			ShopInfo::build($this->db, $this->url, $this->config, $settings, $language)
 		);
 	}
 }

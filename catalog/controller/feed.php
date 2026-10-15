@@ -3,9 +3,11 @@ namespace Opencart\Catalog\Controller\Extension\CcFeeds;
 
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/settings.php';
 require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/generator.php';
+require_once DIR_EXTENSION . 'cc_feeds/system/library/ccfeeds/shopinfo.php';
 
 use Opencart\System\Library\Ccfeeds\Settings;
 use Opencart\System\Library\Ccfeeds\Generator;
+use Opencart\System\Library\Ccfeeds\ShopInfo;
 
 /**
  * Storefront feed endpoints:
@@ -13,6 +15,7 @@ use Opencart\System\Library\Ccfeeds\Generator;
  *   index.php?route=extension/cc_feeds/feed.prom&token=XXXX
  *   index.php?route=extension/cc_feeds/feed.google&token=XXXX
  *   index.php?route=extension/cc_feeds/feed.meta&token=XXXX
+ *   index.php?route=extension/cc_feeds/feed.openai&token=XXXX   (OpenAI Product Feed, jsonl.gz)
  */
 class Feed extends \Opencart\System\Engine\Controller {
 
@@ -30,6 +33,10 @@ class Feed extends \Opencart\System\Engine\Controller {
 
 	public function meta(): void {
 		$this->serve('meta');
+	}
+
+	public function openai(): void {
+		$this->serve('openai');
 	}
 
 	private function serve(string $dialect): void {
@@ -51,18 +58,21 @@ class Feed extends \Opencart\System\Engine\Controller {
 			return;
 		}
 
-		// Discard any buffered layout output; stream raw XML.
+		if ($dialect === 'openai' && !function_exists('gzopen')) {
+			$this->deny(500, 'zlib extension is required for the OpenAI feed');
+			return;
+		}
+
+		// Discard any buffered layout output; stream the raw file.
 		while (ob_get_level() > 0) {
 			ob_end_clean();
 		}
-		$this->response->addHeader('Content-Type: application/xml; charset=utf-8');
-		$this->response->addHeader('X-Content-Type-Options: nosniff');
 
 		// Serve from cache file when enabled and fresh copy exists.
 		if ($settings->get('cache_enabled', '0') === '1') {
 			$file = $this->cachePath($dialect);
 			if (is_file($file) && filesize($file) > 0) {
-				header('Content-Type: application/xml; charset=utf-8');
+				$this->feedHeaders($dialect);
 				readfile($file);
 				exit;
 			}
@@ -77,11 +87,26 @@ class Feed extends \Opencart\System\Engine\Controller {
 			(int)$this->config->get('config_customer_group_id')
 		);
 		$generator->setProductLink(Generator::productLinkBuilder($this->url, $generator->languageCode()));
+		$generator->setAgentShop(ShopInfo::build($this->db, $this->url, $this->config, $settings, $generator->languageCode()));
 
 		// Direct output — bypass OpenCart's response buffering for large feeds.
-		header('Content-Type: application/xml; charset=utf-8');
+		$this->feedHeaders($dialect);
 		$generator->stream($dialect, 'php://output');
 		exit;
+	}
+
+	/**
+	 * XML for the marketplaces; the OpenAI feed is a gzipped JSON Lines file,
+	 * downloaded under the name it is uploaded to OpenAI's SFTP with.
+	 */
+	private function feedHeaders(string $dialect): void {
+		if ($dialect === 'openai') {
+			header('Content-Type: application/gzip');
+			header('Content-Disposition: attachment; filename="openai.jsonl.gz"');
+		} else {
+			header('Content-Type: application/xml; charset=utf-8');
+		}
+		header('X-Content-Type-Options: nosniff');
 	}
 
 	private function cachePath(string $dialect): string {

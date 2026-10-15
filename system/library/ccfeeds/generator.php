@@ -3,10 +3,14 @@ namespace Opencart\System\Library\Ccfeeds;
 
 require_once __DIR__ . '/settings.php';
 require_once __DIR__ . '/merchant.php';
+require_once __DIR__ . '/ucp.php';
+require_once __DIR__ . '/agentformat.php';
+require_once __DIR__ . '/agent.php';
 
 /**
  * Streaming feed generator: YML for Rozetka and Prom.ua, RSS 2.0 (g: namespace)
- * for Google Merchant Center and the Meta catalogue.
+ * for Google Merchant Center and the Meta catalogue, gzipped JSON Lines for the
+ * OpenAI Product Feed (agent.php).
  *
  * Output is written incrementally through XMLWriter straight to php://output
  * (or a file), so a catalog of tens of thousands of offers never has to sit in
@@ -15,6 +19,7 @@ require_once __DIR__ . '/merchant.php';
  */
 class Generator {
 	use MerchantFeed;
+	use AgentFeed;
 
 	private $db;
 	private Settings $settings;
@@ -43,6 +48,7 @@ class Generator {
 		'prom'    => ['format' => 'yml', 'qty_tag' => 'quantity_in_stock'],
 		'google'  => ['format' => 'rss', 'qty_tag' => ''],
 		'meta'    => ['format' => 'rss', 'qty_tag' => ''],
+		'openai'  => ['format' => 'jsonl', 'qty_tag' => ''],
 	];
 
 	/**
@@ -77,8 +83,12 @@ class Generator {
 		};
 	}
 
+	/**
+	 * Feeds whose items carry storefront product links (Google, Meta, OpenAI):
+	 * only the storefront builds SEO URLs, so admin never caches them.
+	 */
 	public static function isLinkDialect(string $dialect): bool {
-		return (self::DIALECTS[$dialect]['format'] ?? '') === 'rss';
+		return in_array(self::DIALECTS[$dialect]['format'] ?? '', ['rss', 'jsonl'], true);
 	}
 
 	/**
@@ -88,6 +98,10 @@ class Generator {
 	 */
 	public function stream(string $dialect, string $target = 'php://output'): int {
 		$dialect = isset(self::DIALECTS[$dialect]) ? $dialect : 'prom';
+
+		if ($dialect === 'openai') {
+			return $this->streamOpenAi($target, $this->agentShop());
+		}
 
 		if (self::isLinkDialect($dialect)) {
 			return $this->streamMerchant($dialect, $target);
@@ -531,13 +545,16 @@ class Generator {
 	 *
 	 * @return array<string,int> dialect => offer count
 	 */
-	public static function rebuildCache($db, Settings $settings, string $imageBase, int $customerGroupId, ?callable $productLink = null): array {
+	public static function rebuildCache($db, Settings $settings, string $imageBase, int $customerGroupId, ?callable $productLink = null, ?array $agentShop = null): array {
 		$dir    = Settings::prepareCacheDir();
 		$secret = (string)$settings->get('feed_token', '');
 
 		$generator = new self($db, $settings, $settings->languageId(), $imageBase, $customerGroupId);
 		if ($productLink !== null) {
 			$generator->setProductLink($productLink);
+		}
+		if ($agentShop !== null) {
+			$generator->setAgentShop($agentShop);
 		}
 		$done      = [];
 		$keep      = [];

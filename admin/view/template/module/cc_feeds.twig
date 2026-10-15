@@ -33,9 +33,13 @@
           <label class="col-sm-2 col-form-label">{{ entry_google }}</label>
           <div class="col-sm-10">{% if google_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_google }}" onclick="this.select()"/>{% else %}<div class="form-control-plaintext text-muted">{{ text_feed_off }}</div>{% endif %}</div>
         </div>
-        <div class="row">
+        <div class="row mb-2">
           <label class="col-sm-2 col-form-label">{{ entry_meta }}</label>
           <div class="col-sm-10">{% if meta_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_meta }}" onclick="this.select()"/>{% else %}<div class="form-control-plaintext text-muted">{{ text_feed_off }}</div>{% endif %}</div>
+        </div>
+        <div class="row">
+          <label class="col-sm-2 col-form-label">{{ entry_openai }}</label>
+          <div class="col-sm-10">{% if openai_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_openai }}" onclick="this.select()"/>{% else %}<div class="form-control-plaintext text-muted">{{ text_ai_feed_off }}</div>{% endif %}</div>
         </div>
       </div>
     </div>
@@ -49,6 +53,7 @@
             <li class="nav-item"><a class="nav-link" href="#tab-filters" data-bs-toggle="tab">{{ text_filters }}</a></li>
             <li class="nav-item"><a class="nav-link" href="#tab-output" data-bs-toggle="tab">{{ text_output }}</a></li>
             <li class="nav-item"><a class="nav-link" href="#tab-merchant" data-bs-toggle="tab">{{ text_merchant }}</a></li>
+            <li class="nav-item"><a class="nav-link" href="#tab-ai" data-bs-toggle="tab">{{ text_ai }}</a></li>
           </ul>
           <div class="tab-content">
 
@@ -290,6 +295,99 @@
               </div>
             </div>
 
+            <div class="tab-pane" id="tab-ai">
+              <p class="text-muted">{{ help_ai }}</p>
+
+              <fieldset>
+                <legend>{{ text_ai_openai }}</legend>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_openai }}</label>
+                  <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                    <input type="hidden" name="module_cc_feeds_openai_enabled" value="0"/>
+                    <input type="checkbox" name="module_cc_feeds_openai_enabled" value="1" class="form-check-input"{{ openai_enabled == '1' ? ' checked' : '' }}/>
+                  </div><div class="form-text">{{ help_openai }}</div>{% if openai_stats %}<div class="form-text"><i class="fa-solid fa-circle-info"></i> {{ openai_stats }}</div>{% endif %}</div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ai_seller_name }}</label>
+                  <div class="col-sm-9"><input type="text" name="module_cc_feeds_ai_seller_name" value="{{ ai_seller_name }}" class="form-control"/><div class="form-text">{{ help_ai_seller_name }}</div></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ai_accepts_returns }}</label>
+                  <div class="col-sm-9"><select name="module_cc_feeds_ai_accepts_returns" class="form-select" style="max-width:260px">
+                    <option value=""{{ ai_accepts_returns == '' ? ' selected' : '' }}>{{ text_ai_returns_unset }}</option>
+                    <option value="yes"{{ ai_accepts_returns == 'yes' ? ' selected' : '' }}>{{ text_yes }}</option>
+                    <option value="no"{{ ai_accepts_returns == 'no' ? ' selected' : '' }}>{{ text_no }}</option>
+                  </select><div class="form-text">{{ help_ai_accepts_returns }}</div></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ai_return_days }}</label>
+                  <div class="col-sm-9"><input type="number" min="1" max="3650" name="module_cc_feeds_ai_return_days" value="{{ ai_return_days }}" class="form-control" style="max-width:140px"/></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ai_return_policy_url }}</label>
+                  <div class="col-sm-9"><input type="text" name="module_cc_feeds_ai_return_policy_url" value="{{ ai_return_policy_url }}" placeholder="https://" class="form-control"/><div class="form-text">{{ help_ai_return_policy_url }}</div></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ai_terms_page }}</label>
+                  <div class="col-sm-9"><select name="module_cc_feeds_ai_terms_info_id" class="form-select" style="max-width:420px">
+                    <option value="0">{{ text_ai_terms_auto }}</option>
+                    {% for info in informations %}<option value="{{ info.information_id }}"{{ info.information_id == ai_terms_info_id ? ' selected' : '' }}>{{ info.title }}</option>{% endfor %}
+                  </select></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ai_privacy_page }}</label>
+                  <div class="col-sm-9"><select name="module_cc_feeds_ai_privacy_info_id" class="form-select" style="max-width:420px">
+                    <option value="0">{{ text_ai_privacy_none }}</option>
+                    {% for info in informations %}<option value="{{ info.information_id }}"{{ info.information_id == ai_privacy_info_id ? ' selected' : '' }}>{{ info.title }}</option>{% endfor %}
+                  </select></div>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>llms.txt</legend>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_llms }}</label>
+                  <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                    <input type="hidden" name="module_cc_feeds_llms_enabled" value="0"/>
+                    <input type="checkbox" name="module_cc_feeds_llms_enabled" value="1" class="form-check-input"{{ llms_enabled == '1' ? ' checked' : '' }}/>
+                  </div><div class="form-text">{{ help_llms }}</div><input type="text" class="form-control mt-1" readonly value="{{ url_llms }}" onclick="this.select()"/></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_llms_products }}</label>
+                  <div class="col-sm-9"><input type="number" min="0" max="500" name="module_cc_feeds_llms_products" value="{{ llms_products }}" class="form-control" style="max-width:140px"/></div>
+                </div>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_llms_summary }}</label>
+                  <div class="col-sm-9"><textarea name="module_cc_feeds_llms_summary" rows="3" maxlength="500" class="form-control">{{ llms_summary }}</textarea><div class="form-text">{{ help_llms_summary }}</div></div>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>{{ text_ai_ucp }}</legend>
+                <div class="row mb-3">
+                  <label class="col-sm-3 col-form-label">{{ entry_ucp }}</label>
+                  <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                    <input type="hidden" name="module_cc_feeds_ucp_enabled" value="0"/>
+                    <input type="checkbox" name="module_cc_feeds_ucp_enabled" value="1" class="form-check-input"{{ ucp_enabled == '1' ? ' checked' : '' }}/>
+                  </div><div class="form-text">{{ help_ucp }}</div>
+                  {% if not ucp_https %}<div class="alert alert-warning mt-2">{{ warning_ucp_https }}</div>{% elseif not ucp_at_root %}<div class="alert alert-warning mt-2">{{ warning_ucp_root }}</div>{% endif %}
+                  <input type="text" class="form-control mt-1" readonly value="{{ url_ucp }}" onclick="this.select()"/>
+                  <input type="text" class="form-control mt-1" readonly value="{{ url_ucp_rest }}" onclick="this.select()"/></div>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>{{ text_ai_server }}</legend>
+                <p>{{ help_ai_server }}</p>
+                <p><button type="button" id="btn-agent-check" class="btn btn-outline-primary"><i class="fa-solid fa-stethoscope"></i> {{ button_agent_check }}</button></p>
+                <div id="agent-check-result"></div>
+                <p class="mb-1"><strong>Apache (.htaccess)</strong></p>
+                <pre class="bg-light p-2" style="white-space:pre-wrap">{{ snippet_apache|e }}</pre>
+                <p class="mb-1"><strong>nginx</strong></p>
+                <pre class="bg-light p-2" style="white-space:pre-wrap">{{ snippet_nginx|e }}</pre>
+              </fieldset>
+            </div>
+
           </div>
         </form>
       </div>
@@ -329,6 +427,33 @@ document.getElementById('btn-test').addEventListener('click', function() {
   fetch(ccUrl('{{ test }}')).then(function(r) { return r.json(); }).then(function(json) {
     if (json.error) { out.innerHTML = '<span class="text-danger">' + json.error + '</span>'; }
     else { out.innerHTML = '<span class="text-success">' + json.success + '</span>'; }
+  });
+});
+
+document.getElementById('btn-agent-check').addEventListener('click', function() {
+  const box = document.getElementById('agent-check-result');
+  box.textContent = '…';
+  fetch(ccUrl('{{ agent_check }}')).then(function(r) { return r.json(); }).then(function(json) {
+    box.textContent = '';
+    if (json.error) {
+      const warn = document.createElement('div');
+      warn.className = 'alert alert-warning';
+      warn.textContent = json.error;
+      box.appendChild(warn);
+      return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'list-unstyled';
+    (json.results || []).forEach(function(r) {
+      const li = document.createElement('li');
+      const icon = document.createElement('i');
+      icon.className = r.ok ? 'fa-solid fa-check text-success' : 'fa-solid fa-xmark text-danger';
+      li.appendChild(icon);
+      const note = r.note === 'https' ? {{ warning_ucp_https|json_encode }} : r.note;
+      li.appendChild(document.createTextNode(' ' + (r.url || r.key) + ' — ' + (r.ok ? 'OK' : note)));
+      list.appendChild(li);
+    });
+    box.appendChild(list);
   });
 });
 
