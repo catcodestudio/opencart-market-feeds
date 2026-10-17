@@ -1,11 +1,12 @@
 # Market Feeds (OpenCart 4)
 
-Product export feeds for OpenCart 4.x — **Rozetka XML**, **Prom.ua YML**, **Google Merchant Center** and **Meta catalogue** (RSS 2.0 with the `g:` namespace).
+Product export feeds for OpenCart 4.x — **Rozetka XML**, **Prom.ua YML**, **Epicentr XML**, **Google Merchant Center** and **Meta catalogue** (RSS 2.0 with the `g:` namespace).
 
 ## Features
 - Token-protected storefront feed URLs:
   - `index.php?route=extension/cc_feeds/feed.rozetka&token=…`
   - `index.php?route=extension/cc_feeds/feed.prom&token=…`
+  - `index.php?route=extension/cc_feeds/feed.epicentr&token=…`
   - `index.php?route=extension/cc_feeds/feed.google&token=…`
   - `index.php?route=extension/cc_feeds/feed.meta&token=…`
 - Streaming `XMLWriter` output — memory-safe on large catalogs (products paged, images/attributes/specials batch-loaded).
@@ -15,6 +16,13 @@ Product export feeds for OpenCart 4.x — **Rozetka XML**, **Prom.ua YML**, **Go
 - Availability + stock threshold mapping; per-platform quantity tag (Rozetka `stock_quantity`, Prom `quantity_in_stock`).
 - Product attributes exported as `<param>`; configurable image limit and description mode.
 - Optional feed file cache rebuilt by cron (`extension/cc_feeds/cron.rebuild`). Cached files are named with a digest of the feed token, so a direct GET of the cache path is as secret as the feed URL itself — `DIR_STORAGE` is not always outside the web root, and nginx serves static files without consulting `.htaccess`. Rotating the token or uninstalling the module deletes them.
+
+## 1.4.1
+- **Epicentr feed** (`extension/cc_feeds/feed.epicentr&token=…`), off until switched on, in Epicentr's own XML: `yml_catalog date > offers > offer id available` with `price`, `price_old`, `availability`, and no `<shop>`, currencies or category list — the Rozetka/Prom YML is rejected by the Epicentr import with «Невідомий тег shop у рядку 3» (instructions supportm.epicentrk.ua/xmlfayl and /avtoonovlennya, re-read 17.10.2026).
+- Two formats: "price and stock" — the short file for the cabinet's daily stock auto-update by URL; "full" — plus name (`lang="ua"` from the Ukrainian language, `lang="ru"` when the shop has Russian, ≤150 characters), description in CDATA reduced to the tags Epicentr keeps (p, br, b, ul, li, table, tr, td; ≤12160), all photos in one `<picture>` separated by «, », and the EAN as `<param paramcode="barcodes">`.
+- The offer id is the OpenCart product ID (Epicentr matches it against «Артикул»). Out-of-stock products are always in the file (`available="false"`, `out_of_stock`): Epicentr does not touch a product that simply disappears from the file. Prices are converted to UAH (Epicentr takes hryvnias only); a shop without the UAH currency gets a warning on the settings page.
+- New products with Epicentr characteristics (category, attribute-set and option codes) are not created from this feed — that is the "Epicentr Price and Stock Sync" module.
+- Rozetka, Prom, Google, Meta and OpenAI feeds are byte-for-byte unchanged.
 
 ## 1.4.0
 - **Catalogue for AI agents** — a new "AI agents" tab, everything off after the update; the Rozetka, Prom, Google and Meta feeds are byte-for-byte unchanged (checked before/after the update in Docker on 4.1.0.3 and 4.0.2.3).

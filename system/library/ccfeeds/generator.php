@@ -6,11 +6,12 @@ require_once __DIR__ . '/merchant.php';
 require_once __DIR__ . '/ucp.php';
 require_once __DIR__ . '/agentformat.php';
 require_once __DIR__ . '/agent.php';
+require_once __DIR__ . '/epicentr.php';
 
 /**
- * Streaming feed generator: YML for Rozetka and Prom.ua, RSS 2.0 (g: namespace)
- * for Google Merchant Center and the Meta catalogue, gzipped JSON Lines for the
- * OpenAI Product Feed (agent.php).
+ * Streaming feed generator: YML for Rozetka and Prom.ua, Epicentr's own XML
+ * (epicentr.php), RSS 2.0 (g: namespace) for Google Merchant Center and the
+ * Meta catalogue, gzipped JSON Lines for the OpenAI Product Feed (agent.php).
  *
  * Output is written incrementally through XMLWriter straight to php://output
  * (or a file), so a catalog of tens of thousands of offers never has to sit in
@@ -20,6 +21,7 @@ require_once __DIR__ . '/agent.php';
 class Generator {
 	use MerchantFeed;
 	use AgentFeed;
+	use EpicentrFeed;
 
 	private $db;
 	private Settings $settings;
@@ -46,6 +48,7 @@ class Generator {
 	public const DIALECTS = [
 		'rozetka' => ['format' => 'yml', 'qty_tag' => 'stock_quantity'],
 		'prom'    => ['format' => 'yml', 'qty_tag' => 'quantity_in_stock'],
+		'epicentr' => ['format' => 'epicentr', 'qty_tag' => ''],
 		'google'  => ['format' => 'rss', 'qty_tag' => ''],
 		'meta'    => ['format' => 'rss', 'qty_tag' => ''],
 		'openai'  => ['format' => 'jsonl', 'qty_tag' => ''],
@@ -92,6 +95,15 @@ class Generator {
 	}
 
 	/**
+	 * Whether a feed is on when the shop never saved the switch: Rozetka and
+	 * Prom since 1.0; everything added later starts off, so an update never
+	 * begins publishing a new file by itself.
+	 */
+	public static function enabledByDefault(string $dialect): string {
+		return in_array($dialect, ['rozetka', 'prom'], true) ? '1' : '0';
+	}
+
+	/**
 	 * Stream a feed for the given dialect to $target ('php://output' by
 	 * default, or a filesystem path for cache generation).
 	 * Returns the number of offers written.
@@ -101,6 +113,10 @@ class Generator {
 
 		if ($dialect === 'openai') {
 			return $this->streamOpenAi($target, $this->agentShop());
+		}
+
+		if ($dialect === 'epicentr') {
+			return $this->streamEpicentr($target);
 		}
 
 		if (self::isLinkDialect($dialect)) {
@@ -420,10 +436,11 @@ class Generator {
 	 * 19 offers while the feed contained 17 — and the merchant had no way to
 	 * tell which number the marketplace would see.
 	 */
-	public function productWhere(): string {
+	public function productWhere(bool $stockRule = true): string {
 		$where = ["p.status = 1", "p.date_available <= NOW()"];
 
-		if ($this->settings->get('include_out_of_stock', '0') !== '1') {
+		// Epicentr passes false: out-of-stock goods go into its file marked so.
+		if ($stockRule && $this->settings->get('include_out_of_stock', '0') !== '1') {
 			$where[] = "p.quantity > " . (int)$this->settings->get('stock_threshold', 0);
 		}
 
@@ -560,7 +577,7 @@ class Generator {
 		$keep      = [];
 
 		foreach (array_keys(self::DIALECTS) as $dialect) {
-			if ($settings->get($dialect . '_enabled', self::isLinkDialect($dialect) ? '0' : '1') !== '1') {
+			if ($settings->get($dialect . '_enabled', self::enabledByDefault($dialect)) !== '1') {
 				continue;
 			}
 

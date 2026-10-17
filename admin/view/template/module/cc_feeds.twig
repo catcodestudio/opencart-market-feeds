@@ -30,6 +30,10 @@
           <div class="col-sm-10"><input type="text" class="form-control" readonly value="{{ url_prom }}" onclick="this.select()"/></div>
         </div>
         <div class="row mb-2">
+          <label class="col-sm-2 col-form-label">{{ entry_epicentr }}</label>
+          <div class="col-sm-10">{% if epicentr_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_epicentr }}" onclick="this.select()"/>{% if epicentr_no_uah %}<div class="form-text text-warning">{{ text_epicentr_no_uah }}</div>{% endif %}{% else %}<div class="form-control-plaintext text-muted">{{ text_epicentr_off }}</div>{% endif %}</div>
+        </div>
+        <div class="row mb-2">
           <label class="col-sm-2 col-form-label">{{ entry_google }}</label>
           <div class="col-sm-10">{% if google_enabled == '1' %}<input type="text" class="form-control" readonly value="{{ url_google }}" onclick="this.select()"/>{% else %}<div class="form-control-plaintext text-muted">{{ text_feed_off }}</div>{% endif %}</div>
         </div>
@@ -78,6 +82,18 @@
                   <input type="hidden" name="module_cc_feeds_prom_enabled" value="0"/>
                   <input type="checkbox" name="module_cc_feeds_prom_enabled" value="1" class="form-check-input"{{ prom_enabled == '1' ? ' checked' : '' }}/>
                 </div></div>
+              </div>
+              <div class="row mb-3">
+                <label class="col-sm-3 col-form-label">{{ entry_epicentr }}</label>
+                <div class="col-sm-9"><div class="form-check form-switch form-switch-lg">
+                  <input type="hidden" name="module_cc_feeds_epicentr_enabled" value="0"/>
+                  <input type="checkbox" name="module_cc_feeds_epicentr_enabled" value="1" class="form-check-input"{{ epicentr_enabled == '1' ? ' checked' : '' }}/>
+                </div>
+                <select name="module_cc_feeds_epicentr_mode" id="input-epicentr-mode" class="form-select mt-2" style="max-width:520px" aria-label="{{ entry_epicentr_mode }}">
+                  <option value="short"{{ epicentr_mode != 'full' ? ' selected' : '' }}>{{ text_epicentr_short }}</option>
+                  <option value="full"{{ epicentr_mode == 'full' ? ' selected' : '' }}>{{ text_epicentr_full }}</option>
+                </select>
+                <div class="form-text">{{ help_epicentr }}</div></div>
               </div>
               <div class="row mb-3">
                 <label class="col-sm-3 col-form-label">{{ entry_token }}</label>

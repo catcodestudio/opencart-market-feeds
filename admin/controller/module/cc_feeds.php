@@ -63,6 +63,7 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		}
 		$data['url_rozetka'] = $store . '/index.php?route=extension/cc_feeds/feed.rozetka&token=' . $data['feed_token'];
 		$data['url_prom']    = $store . '/index.php?route=extension/cc_feeds/feed.prom&token=' . $data['feed_token'];
+		$data['url_epicentr'] = $store . '/index.php?route=extension/cc_feeds/feed.epicentr&token=' . $data['feed_token'];
 		$data['url_google']  = $store . '/index.php?route=extension/cc_feeds/feed.google&token=' . $data['feed_token'];
 		$data['url_meta']    = $store . '/index.php?route=extension/cc_feeds/feed.meta&token=' . $data['feed_token'];
 		$data['url_openai']  = $store . '/index.php?route=extension/cc_feeds/feed.openai&token=' . $data['feed_token'];
@@ -107,6 +108,14 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 
 		$this->load->model('localisation/currency');
 		$data['currencies']   = $this->model_localisation_currency->getCurrencies();
+
+		// Epicentr takes hryvnias only; the feed converts to UAH when the shop has it.
+		$data['epicentr_no_uah'] = true;
+		foreach ($data['currencies'] as $item) {
+			if (strtoupper((string)$item['code']) === 'UAH') {
+				$data['epicentr_no_uah'] = false;
+			}
+		}
 		$data['base_currency'] = (string)$this->config->get('config_currency');
 
 		// Shown next to the tax switch: the module can only mirror the shop, and
@@ -164,6 +173,8 @@ class CcFeeds extends \Opencart\System\Engine\Controller {
 		// time: the merchant reloads the page and sees exactly what will go into
 		// the feed, and a field that comes back empty reads as "Google does not
 		// understand this" instead of quietly poisoning the XML.
+		$data['module_cc_feeds_epicentr_mode'] = $data['module_cc_feeds_epicentr_mode'] === 'full' ? 'full' : 'short';
+
 		$data['module_cc_feeds_handling_business_days'] = Settings::normalizeBusinessDays((string)$data['module_cc_feeds_handling_business_days']);
 		$data['module_cc_feeds_handling_cutoff_time']   = Settings::normalizeCutoff((string)$data['module_cc_feeds_handling_cutoff_time']);
 

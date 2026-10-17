@@ -42,6 +42,10 @@ class Settings {
 			'rozetka_enabled'      => '1',
 			'prom_enabled'         => '1',
 
+			// Epicentr in its own XML (1.4.1). Off until switched on.
+			'epicentr_enabled'     => '0',
+			'epicentr_mode'        => 'short', // short = price/stock auto-update | full = + name, description, photos, barcode
+
 			// Google Merchant Center / Meta catalogue (RSS 2.0 + g: namespace).
 			// Off by default: an update must not start publishing a new feed.
 			'google_enabled'       => '0',

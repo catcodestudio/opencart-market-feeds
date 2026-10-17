@@ -13,6 +13,7 @@ use Opencart\System\Library\Ccfeeds\ShopInfo;
  * Storefront feed endpoints:
  *   index.php?route=extension/cc_feeds/feed.rozetka&token=XXXX
  *   index.php?route=extension/cc_feeds/feed.prom&token=XXXX
+ *   index.php?route=extension/cc_feeds/feed.epicentr&token=XXXX  (Epicentr's own XML, no <shop>)
  *   index.php?route=extension/cc_feeds/feed.google&token=XXXX
  *   index.php?route=extension/cc_feeds/feed.meta&token=XXXX
  *   index.php?route=extension/cc_feeds/feed.openai&token=XXXX   (OpenAI Product Feed, jsonl.gz)
@@ -25,6 +26,10 @@ class Feed extends \Opencart\System\Engine\Controller {
 
 	public function prom(): void {
 		$this->serve('prom');
+	}
+
+	public function epicentr(): void {
+		$this->serve('epicentr');
 	}
 
 	public function google(): void {
@@ -47,7 +52,7 @@ class Feed extends \Opencart\System\Engine\Controller {
 			return;
 		}
 		$enabledKey = $dialect . '_enabled';
-		if ($settings->get($enabledKey, Generator::isLinkDialect($dialect) ? '0' : '1') !== '1') {
+		if ($settings->get($enabledKey, Generator::enabledByDefault($dialect)) !== '1') {
 			$this->deny(404, 'Feed disabled');
 			return;
 		}

@@ -1,7 +1,7 @@
 {
   "name": "Market Feeds",
-  "description": "Product export feeds for OpenCart 4.x: Rozetka XML, Prom.ua YML, Google Merchant Center and Meta catalogue (RSS with g: namespace), OpenAI Product Feed (jsonl.gz), /llms.txt and a Universal Commerce Protocol catalog (/.well-known/ucp + catalog search/lookup) for AI agents — variants from size/colour options, real dispatch time, token-protected storefront feed URLs, streaming output, category/manufacturer filtering, special price, availability + stock mapping, attributes as <param>, optional feed file cache via cron.",
-  "version": "1.4.0",
+  "description": "Product export feeds for OpenCart 4.x: Rozetka XML, Prom.ua YML, Epicentr XML, Google Merchant Center and Meta catalogue (RSS with g: namespace), OpenAI Product Feed (jsonl.gz), /llms.txt and a Universal Commerce Protocol catalog (/.well-known/ucp + catalog search/lookup) for AI agents — variants from size/colour options, real dispatch time, token-protected storefront feed URLs, streaming output, category/manufacturer filtering, special price, availability + stock mapping, attributes as <param>, optional feed file cache via cron.",
+  "version": "1.4.1",
   "author": "CatCode",
   "link": "https://catcode.com.ua/modules/opencart-market-feeds/"
 }
